@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { InDevelopment } from './InDevelopment';
+import { API_BASE_URL } from '../config/api';
 
 interface DashboardLayoutProps {
   onLogout: () => void;
@@ -37,7 +38,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) =>
       if (!token) return;
       try {
         setLoading(true);
-        const res = await fetch('http://localhost:4000/api/v1/saas/dashboard-overview', {
+        const res = await fetch(`${API_BASE_URL}/saas/dashboard-overview`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
