@@ -1,24 +1,32 @@
-version: '3.8'
+name: bodegia-platform
 
 services:
-  postgres:
-    image: postgres:17-alpine
-    container_name: bodegia_postgres
-    restart: always
-    environment:
-      POSTGRES_DB: bodeg-ia
-      POSTGRES_USER: bdg
-      POSTGRES_PASSWORD: bodegia-db
+  # Servidor Backend API REST v1
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: bodegia_backend
+    restart: unless-stopped
     ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U bdg -d bodeg-ia"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - DATABASE_URL=postgresql://bdg:bodegia-db@192.168.1.49:5432/bodeg-ia?schema=public
+      - JWT_SECRET=bodegia_super_secret_jwt_key_2026_x89a
+      - JWT_EXPIRES_IN=1d
+      - SERVER_DOMAIN=bodegia.bamms.dev
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
-volumes:
-  postgres_data:
+  # Servidor Frontend SPA (Nginx en puerto 5173 para el dominio bodegia.bamms.dev)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: bodegia_frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend

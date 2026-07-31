@@ -1,7 +1,7 @@
 name: bodegia-homelab
 
 services:
-  # Servidor Backend API REST
+  # Servidor Backend API REST v1
   backend:
     build:
       context: ./backend
@@ -15,6 +15,7 @@ services:
       - DATABASE_URL=postgresql://bdg:bodegia-db@192.168.1.49:5432/bodeg-ia?schema=public
       - JWT_SECRET=bodegia_super_secret_jwt_key_2026_x89a
       - JWT_EXPIRES_IN=1d
+      - SERVER_DOMAIN=bodegia.bamms.dev
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -26,6 +27,6 @@ services:
     container_name: bodegia_frontend
     restart: unless-stopped
     ports:
-      - "8080:80"
+      - "5173:80"
     depends_on:
       - backend
