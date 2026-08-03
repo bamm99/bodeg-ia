@@ -1,6 +1,6 @@
 # 🏢 Bodeg-IA — Arquitectura de Negocio, Roles, Matriz RBAC y Árbol de Menús (Sidebar)
 
-Documento maestro de especificación de negocio, niveles de acceso, flujo de solicitudes de despacho 3PL, notificaciones por Telegram, seguridad y estructura detallada del menú lateral (Sidebar) para la plataforma **Bodeg-IA**.
+Documento maestro de especificación de negocio, niveles de acceso, jerarquía de permisos, PostgreSQL RLS, flujo de solicitudes de despacho 3PL vs Stock Propio, notificaciones por Telegram, idempotencia en terreno y estructura detallada del menú lateral (Sidebar) para la plataforma **Bodeg-IA**.
 
 ---
 
@@ -29,7 +29,7 @@ La plataforma distingue tres categorías de usuarios: **Internos de Plataforma**
 ### 🏢 2. Usuarios Externos (Empresa Cliente / Operador Logístico)
 3. **Administrador de Empresa (`COMPANY_ADMIN`)**: Administrador principal de una empresa cliente. Controla la configuración de su empresa, sucursales, bodegas, tarifarios AST, usuarios internos, catálogo y clientes 3PL.
 4. **Jefe de Bodega (`WAREHOUSE_MANAGER`)**: Responsable operativo y de supervisión de sus bodegas asignadas (`user_warehouse_assignments`). Dispone de un **Selector de Bodega (Warehouse Switcher en Header)** para alternar entre sus instalaciones. Aprueba solicitudes de despacho 3PL, **supervisa ex-post** las reubicaciones de stock, administra casilleros locales y consulta tarifarios locales. No gestiona facturación global de la empresa ni usuarios fuera de sus bodegas.
-5. **Bodeguero / Operador (`WAREHOUSE_OPERATOR`)**: Usuario operativo en terreno. Accede al mapa 2D, ejecuta recepción (Inbound), reubicación directa (Relocate) y despachos aprobados (Outbound). **Strictly No-Financial**: No accede a costos ni tarifas.
+5. **Bodeguero / Operador (`WAREHOUSE_OPERATOR`)**: Usuario operativo en terreno. Accede al mapa 2D, ejecuta recepción (Inbound), reubicación directa (Relocate) y despachos. **Strictly No-Financial**: No accede a costos ni tarifas.
 6. **Gestión / Comercial (`COMMERCIAL_MANAGEMENT`)**: Usuario comercial y financiero. Administra tarifarios de costo de almacenamiento, volumen $m^3$, liquidaciones de cobro a clientes 3PL, simuladores de cotización en memoria y onboarding de clientes 3PL. No realiza movimientos físicos de stock.
 
 ### 🛒 3. Usuarios Externos (Propietarios de Mercancía / Cliente 3PL Final)
@@ -37,77 +37,72 @@ La plataforma distingue tres categorías de usuarios: **Internos de Plataforma**
 
 ---
 
-## 🛡️ Aislamiento Multi-Tenant Duro en Telegram IA & Seguridad AST
+## 🔑 Jerarquía de Permisos (Resolución de Doble Fuente de Verdad)
+
+Para eliminar cualquier ambigüedad entre `roles.permissions` (JSONB) y `user_warehouse_assignments`:
 
 ```
-┌───────────────────────────┐
-│ Mensaje Telegram Usuario  │ "¿En qué pasillo está la Harina 25kg?"
-└─────────────┬─────────────┘
-              │
-              ▼
-┌───────────────────────────┐  1. Obtiene Telegram Chat ID
-│ Telegram Auth Middleware  ├─► 2. Identifica User & tenant_id / warehouse_ids
-└─────────────┬─────────────┘
-              │
-              ▼
-┌───────────────────────────┐  3. Ejecuta Query SQL en PostgreSQL con FILTRO DURO:
-│ Database SQL Pre-Filter   ├─► `WHERE company_id = 'c1' AND storage_location_id IN (...)`
-└─────────────┬─────────────┘
-              │
-              ▼ (Dataset Seguro Filtrado en JSON)
-┌───────────────────────────┐
-│   Contexto para LLM IA    ├─► 4. El LLM procesa solo los datos del tenant autenticado.
-└─────────────┬─────────────┘    IMPOSIBLE fuga cross-tenant por Prompt Injection.
-              │
-              ▼
-┌───────────────────────────┐
-│ Respuesta en Terreno      │ "La Harina 25kg está en Pasillo 01, Repisa A1, Nivel 2."
-└─────────────────────────--┘
+┌───────────────────────────────────────┐
+│     EVALUACIÓN DE PERMISOS (AND)      │
+└──────────────────┬────────────────────┘
+                   │
+    ┌──────────────┴──────────────┐
+    ▼                             ▼
+ACCIONES PERMITIDAS           ALCANCE ESPACIAL
+(`roles.permissions` JSONB)   (`user_warehouse_assignments`)
+- ¿Qué operación puede hacer? - ¿En qué bodega específica?
+  Ej: `inventory:write`          Ej: `warehouse_id = 'w1'`
 ```
 
-### 1. Aislamiento Multi-Tenant Duro en Telegram IA (Pre-SQL Filter)
-Para prevenir ataques de Prompt Injection o Jailbreak donde un usuario intente hacer que el modelo de IA "olvide" sus instrucciones y devuelva datos de otra empresa cliente:
-* **Filtro Duro Pre-SQL:** El Bot de Telegram **NUNCA entrega la base de datos abierta al LLM ni permite que el modelo ejecute SQL arbitrario**.
-* Al recibir una pregunta en lenguaje natural, el backend obtiene el `user_id`, `company_id` y `warehouse_ids` asignados al usuario de Telegram.
-* El sistema ejecuta primero una consulta SQL estricta con clausula obligatoria `WHERE company_id = '<user_company_id>'`.
-* El conjunto de datos JSON resultante y filtrado a nivel de base de datos se entrega como contexto seguro al LLM para redactar la respuesta. Esto garantiza matemáticamente un **aislamiento multi-tenant infranqueable**.
-
-### 2. Whitelist Estricta de Variables en Fórmulas AST
-En el módulo de Tarifario y Motor de Costos AST, el parser de mathjs valida las expresiones dinámicas contra una **Lista Blanca (Whitelist) estricta de Identificadores Permitidos**:
-* **Variables Permitidas:** `base`, `turnover`, `maintenance`, `energy`, `seasonal`, `occupied_m3`, `total_m3`.
-* Si un usuario intenta ingresar variables de sistema no autorizadas o símbolos extraños (ej. `process`, `eval`, `internal_cost`), el validador rechaza la fórmula con el error `INVALID_FORMULA_VARIABLE`.
+* **Regla de Evaluación:** *"La asignación de bodega (`user_warehouse_assignments`) restringe el ALCANCE ESPACIAL; el rol (`roles.permissions` JSONB) define las ACCIONES PERMITIDAS dentro de ese alcance."*
+* **Lógica de Intersección (AND):** Un usuario solo puede ejecutar una acción si su rol autoriza la **ACCIÓN** Y la petición afecta a una bodega dentro de su **ALCANCE ESPACIAL asignado**.
 
 ---
 
-## ⚡ Reglas de Negocio, Alertas Proactivas 90% & Almacenamiento
+## 🛡️ PostgreSQL Row-Level Security (RLS) & Aislamiento en Base de Datos
 
-### ⚠️ 1. Alerta Proactiva Preventiva al 90% de Límites SaaS
-Para evitar que una empresa cliente quede bloqueada operativamente sin previo aviso al llegar un camión urgente:
-* **Umbral de Alerta del 90%:** Cuando una empresa alcanza el 90% de consumo de cualquier límite contratado (`max_warehouses`, `max_users`, `max_storage_m3`), el sistema dispara alertas proactivas:
-  - **Notificación por Telegram:** Mensaje automático al `COMPANY_ADMIN`: *"⚠️ Advertencia de Capacidad — Tu empresa ha alcanzado el 90% del almacenamiento contratado (1.800 / 2.000 m³). Te sugerimos gestionar un upgrade de plan para evitar interrupciones operativas"*.
-  - **Correo Electrónico Transaccional:** Correo enviado al Administrador y al Ejecutivo de Plataforma asignado.
-  - **Banner de Advertencia en Dashboard:** Banner amarillo interactivo en el frontend con el botón **"Solicitar Upgrade de Plan"**.
-* **Bloqueo Duro al 100%:** Si alcanza el 100%, las peticiones `INSERT` retornan `HTTP 402 Payment Required` desplegando la modal de Upsell comercial.
+Adicionalmente al filtro por aplicación en Node.js y al aislamiento pre-SQL del Bot de Telegram, se habilita la capa de **Row-Level Security (RLS)** nativa de PostgreSQL como defensa en profundidad:
 
-### 🎛️ 2. Selector de Bodega en Header (`Warehouse Switcher`)
-Para dar soporte a usuarios con múltiples asignaciones (`user_warehouse_assignments`):
-* En el encabezado superior (Topbar) del **Jefe de Bodega** y **Bodeguero**, se incluye el dropdown **`Warehouse Switcher`** que permite alternar entre sus bodegas asignadas o seleccionar *"Todas mis Bodegas Asignadas (Consolidado)"*.
-* La opción del Sidebar se renombra a **"Mis Bodegas Asignadas"** (en plural) para reflejar correctamente la vista multi-bodega.
+```sql
+-- Política RLS Incondicional en PostgreSQL
+ALTER TABLE inventory_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE dispatch_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cost_profiles ENABLE ROW LEVEL SECURITY;
 
-### 📦 3. Solicitudes de Despacho 3PL (`dispatch_requests`) & Notificaciones Telegram Push
-* **Modelo de Datos:** Separación de solicitudes pendientes (`dispatch_requests` con estados `PENDING`, `APPROVED`, `FULFILLED`, `REJECTED`) de los movimientos físicos ejecutados en Kardex (`inventory_movements`).
-* **Telegram Push Alert:** Notificación instantánea al Jefe de Bodega al recibir una nueva solicitud 3PL.
+CREATE POLICY tenant_isolation_policy ON inventory_items
+    USING (company_id = current_setting('app.current_company_id', true)::uuid);
+```
 
-### 🏭 4. Aclaración de Flujos: Supervisión Ex-Post vs Aprobación Previa
-* **Reubicaciones entre Casilleros (Relocate):** **Acción Directa + Supervisión Ex-Post**. Los bodegueros mueven pallets libremente en tiempo real. El Jefe de Bodega **supervisa y audita ex-post** los movimientos desde su dashboard.
-* **Despachos de Mercancía (Outbound):** **Aprobación Previa Obligatoria**. Requiere que una solicitud (`dispatch_requests`) esté previamente autorizada (`APPROVED`) por el Jefe de Bodega antes del despacho físico.
+* **Defensa en Profundidad:** Cada transacción Prisma/Express ejecuta `SET LOCAL app.current_company_id = '<company_id>'`.
+* **Garantía Infranqueable:** Si un desarrollador omitiera accidentalmente el filtro `WHERE company_id = ...` en una futura consulta SQL, el motor de PostgreSQL RLS bloquea automáticamente cualquier fuga de datos entre tenants a nivel de almacenamiento.
 
-### ✉️ 5. Onboarding, Fin de Contrato 90 Días & Seguridad Portal 3PL
-* **Botón "✉️ Invitar a Portal 3PL":** Permite al Admin Empresa enviar una invitación por correo para crear accesos `CLIENT_VIEWER`.
-* **Estado `READ_ONLY_HISTORICAL_90_DAYS`:** 90 días de acceso solo lectura a respaldos tras finalizar el contrato comercial.
-* **Seguridad `CLIENT_VIEWER`:** Token JWT corto de **4 horas** y cierre por inactividad a los **15 minutos**.
-* **Auditoría `tenant_access_audit_logs`:** Registro inmutable de consultas a tarifarios por usuarios internos.
-* **Downgrade Bloqueado con Exceso:** Prohibición de downgrade hasta reducir recursos activos.
+---
+
+## 📦 Regla de Despacho (Outbound): Stock Propio vs Stock 3PL Externo
+
+### 1. Bifurcación de Regla de Negocio en Outbound
+* **Stock Propio de la Empresa (`client_owner_id == null`):** Despacho **DIRECTO e Inmediato**. Los usuarios `COMPANY_ADMIN`, `WAREHOUSE_MANAGER` o `WAREHOUSE_OPERATOR` ejecutan el despacho directo sin requerir aprobación previa.
+* **Mercancía de Cliente 3PL Externo (`client_owner_id != null`):** Requiere **Aprobación Previa Obligatoria**. El despacho físico solo se procesa si existe una solicitud `dispatch_request` en estado `APPROVED` previa.
+
+---
+
+## ⚡ Concurrencia en Terreno & Seguridad
+
+### 📶 1. Idempotencia en Formularios Móviles de Terreno (`x-idempotency-key`)
+* Los formularios de terreno (`Inbound`, `Relocate`, `Outbound`) envían un UUID único en el header HTTP: **`x-idempotency-key`**.
+* El middleware `idempotencyMiddleware` cachea las respuestas por 24h, evitando duplicar existencias o contar stock dos veces ante desconexiones de WiFi en la bodega.
+
+### 🔒 2. Aislamiento Multi-Tenant Duro en Telegram IA & Rate Limiting
+* **Filtro Duro Pre-SQL:** El Bot de Telegram ejecuta una consulta SQL con la cláusula obligatoria `WHERE company_id = '<user_company_id>'` **ANTES** de entregar el contexto al LLM, impidiendo ataques de Prompt Injection.
+* **Rate Limiting de PIN Telegram:** Límite estricto de máximo **3 PINs solicitados por usuario por hora** en `POST /api/v1/telegram/generate-pin`.
+
+### ⏱️ 3. Validación Server-Side de Inactividad (Portal 3PL `CLIENT_VIEWER`)
+* Validación del timestamp `last_activity_at` en el backend para tokens `CLIENT_VIEWER`. Si transcurren más de **15 minutos sin actividad**, el backend revoca la sesión con `HTTP 401 TOKEN_INACTIVITY_EXPIRED`.
+
+### ⚠️ 4. Alerta Proactiva al 90% de Límites SaaS & Whitelist AST
+* **Alerta Preventiva 90%:** Notificaciones por Telegram, correo transaccional y banner interactivo al consumir el 90% de los límites del plan (`max_warehouses`, `max_users`, `max_storage_m3`).
+* **Whitelist Estricta AST:** Parser de mathjs restringido a la lista blanca: `base`, `turnover`, `maintenance`, `energy`, `seasonal`, `occupied_m3`, `total_m3`.
+* **Audit Log Acceso Datos Sensibles:** Tabla `tenant_access_audit_logs` para auditar cada consulta de Super Admins o Ejecutivos a tarifarios de clientes.
 
 ---
 
@@ -154,7 +149,7 @@ Para dar soporte a usuarios con múltiples asignaciones (`user_warehouse_assignm
 --> Estado & Configuración del Bot
 ---> Descripción: Panel de control de la integración con el Bot de Telegram de IA. Muestra el estado del webhook de Telegram, tokens de API, logs de mensajes procesados, intenciones consultadas por usuarios en terreno, trazabilidad de **filtros pre-SQL multi-tenant** y tasa de éxito.
 --> Registro de Dispositivos & Usuarios Telegram
----> Descripción: Muestra las cuentas de Telegram y teléfonos vinculados a usuarios del sistema mediante código PIN temporal de 10 minutos para consultas directas desde terreno.
+---> Descripción: Muestra las cuentas de Telegram y teléfonos vinculados a usuarios del sistema mediante código PIN temporal de 10 minutos (con límite de 3 solicitudes por hora) para consultas directas desde terreno.
 
 -> Auditoría, Seguridad & Access Logs
 --> Audit Log de Acceso a Datos de Tenants
@@ -237,12 +232,12 @@ Para dar soporte a usuarios con múltiples asignaciones (`user_warehouse_assignm
 -> Inventario & Control de Stock
 --> Listado de Existencias (Stock Físico)
 ---> Descripción: Vista general de todos los items almacenados en las bodegas de la empresa. Muestra SKU, producto, cliente propietario 3PL, casillero exacto donde reside, cantidad, lote, fecha de vencimiento y volumen m³ ocupado.
---> Ingreso de Stock (Inbound)
----> Descripción: Formulario operativo para recibir nueva mercancía en la bodega. Requiere seleccionar el producto, casillero de destino (con validación automática de volumen disponible en m³), cantidad, lote y cliente propietario. Al registrar, genera automáticamente la entrada en el Kardex.
---> Reubicación de Stock (Relocate)
----> Descripción: Herramienta para transferir mercancía de un casillero a otro dentro de la bodega. Actualiza en tiempo real los volúmenes m³ ocupados tanto en el casillero origen como en el destino y registra el movimiento de reubicación en el Kardex.
---> Salida / Despacho (Outbound)
----> Descripción: Formulario para registrar la salida de mercancía vinculada a una solicitud previamente aprobada (`APPROVED`). Libera volumen m³ en el casillero de origen y descuenta las existencias en inventario registrando el movimiento de salida en el Kardex.
+--> Ingreso de Stock (Inbound) [x-idempotency-key]
+---> Descripción: Formulario operativo con cabecera de idempotencia `x-idempotency-key` para recibir mercancía en bodega con seguridad ante WiFi intermitente. Requiere seleccionar producto, casillero de destino (con validación de volumen m³ disponible), cantidad, lote y cliente propietario.
+--> Reubicación de Stock (Relocate) [x-idempotency-key]
+---> Descripción: Herramienta de transferencia con cabecera `x-idempotency-key` para mover mercancía entre casilleros, actualizando volúmenes ocupados y registrando el movimiento de reubicación en Kardex.
+--> Salida / Despacho (Outbound) [x-idempotency-key]
+---> Descripción: Formulario para registrar salidas con cabecera `x-idempotency-key`. **Si es stock 3PL (`client_owner_id != null`), exige solicitud previa en `APPROVED`**; **si es stock propio de la empresa (`client_owner_id == null`), procesa el despacho directo**.
 --> Kardex de Movimientos (Histórico & Auditoría)
 ---> Descripción: Registro cronológico e inmutable de todos los movimientos de inventario realizados en la empresa. Muestra fecha/hora, tipo de movimiento (INBOUND, RELOCATION, OUTBOUND), casillero origen, casillero destino, producto, cantidad y usuario que ejecutó la operación.
 
@@ -256,13 +251,13 @@ Para dar soporte a usuarios con múltiples asignaciones (`user_warehouse_assignm
 --> Gestión de Usuarios de la Empresa
 ---> Descripción: Administración de las cuentas de usuario de la empresa (Jefes de Bodega, Bodegueros, Ejecutivos Comerciales). Valida previamente contra el límite `max_users` del plan. Permite asignar roles, activar/desactivar cuentas y restablecer claves.
 --> Asignación de Bodegas por Usuario
----> Descripción: Mapeo de permisos por bodega (`user_warehouse_assignments`). Permite restringir a un Jefe de Bodega o Bodeguero para que solo pueda ver u operar en las bodegas explícitamente asignadas.
+---> Descripción: Mapeo de permisos por bodega (`user_warehouse_assignments`). Aplica la regla de evaluación `Rol ACCIÓN AND Asignación ALCANCE` para restringir a un usuario dentro de sus instalaciones.
 --> Mi Plan SaaS & Estado de Suscripción [Alerta 90%]
 ---> Descripción: Muestra el plan SaaS actual contratado (BASIC, PRO, ENTERPRISE), el porcentaje consumido de los límites con alertas al 90% y permite solicitar un Upgrade de plan directamente a su Ejecutivo de Plataforma.
 
 -> Bot de Telegram IA
 --> Vinculación de Cuentas Telegram (Código PIN)
----> Descripción: Generador de códigos PIN temporales (expiración estricta de 10 minutos, máximo 3 intentos fallidos) para que el personal de la empresa pueda vincular su cuenta de Telegram al sistema Bodeg-IA.
+---> Descripción: Generador de códigos PIN temporales (expiración estricta de 10 minutos, máximo 3 intentos fallidos, limite de 3 PINs por hora por usuario) para vincular Telegram al sistema Bodeg-IA.
 --> Historial de Consultas de Terreno
 ---> Descripción: Visor de preguntas realizadas al Bot de Telegram por el personal de la empresa en terreno.
 
@@ -288,12 +283,12 @@ Para dar soporte a usuarios con múltiples asignaciones (`user_warehouse_assignm
 ---> Descripción: Muestra los perfiles de costo AST aplicados a las zonas y repisas de la bodega seleccionada. A diferencia del bodeguero, el Jefe de Bodega **SÍ puede consultar las tarifas** de su bodega para coordinar la optimización del espacio, pero **no puede modificar** la estructura tarifaria financiera de la empresa.
 
 -> Operaciones de Inventario & Supervisión
---> Gestión de Ingresos (Inbound)
+--> Gestión de Ingresos (Inbound) [x-idempotency-key]
 ---> Descripción: Control y registro de recepciones de mercancía que ingresan a sus bodegas.
 --> Supervisión y Auditoría de Reubicaciones (Relocate)
 ---> Descripción: Visor de supervisión y auditoría ex-post de los movimientos de mercancía entre casilleros realizados libremente por los bodegueros en terreno. Permite auditar qué bodeguero movió cada pallet sin generar cuellos de botella operativos.
---> Ejecución de Despachos Aprobados (Outbound)
----> Descripción: Control de salidas de productos cuya solicitud ya ha sido autorizada previamente.
+--> Ejecución de Despachos (Outbound) [x-idempotency-key]
+---> Descripción: Control de salidas de productos. **Procesa directo si es stock propio** o **requiere solicitud autorizada previa si es stock 3PL**.
 --> Kardex de Mis Bodegas
 ---> Descripción: Historial filtrado de movimientos de inventario ocurridos exclusivamente en sus bodegas asignadas.
 
@@ -315,12 +310,12 @@ Para dar soporte a usuarios con múltiples asignaciones (`user_warehouse_assignm
 ---> Descripción: Buscador de respuesta inmediata para terreno. El operador ingresa un código SKU o nombre de producto y la herramienta devuelve la ruta física jerárquica exacta para ir a buscarlo (*Ejemplo: Zona A > Pasillo 01 > Repisa REP-A1 > Nivel 2 > Casillero A1-N2-POS1*).
 
 -> Operaciones de Inventario en Terreno
---> Recepción de Mercancía (Inbound)
----> Descripción: Formulario rápido optimizado para tablets/móviles para ingresar productos a la bodega, asignándoles casillero con validación de volumen m³ disponible, lote y vencimiento.
---> Reubicación de Mercancía Directa (Relocate)
----> Descripción: Herramienta de terreno para mover pallets o cajas de un casillero a otro libremente en tiempo real, seleccionando origen y destino. Queda registrado para auditoría ex-post del Jefe de Bodega.
---> Despacho de Órdenes Aprobadas (Outbound)
----> Descripción: Lista de despachos cuya solicitud ya ha sido aprobada por el Jefe de Bodega. Muestra la ubicación de los casilleros de donde retirar el producto para su entrega al transporte.
+--> Recepción de Mercancía (Inbound) [x-idempotency-key]
+---> Descripción: Formulario rápido con cabecera `x-idempotency-key` optimizado para tablets/móviles para ingresar productos a la bodega con seguridad ante WiFi intermitente.
+--> Reubicación de Mercancía Directa (Relocate) [x-idempotency-key]
+---> Descripción: Herramienta de terreno con `x-idempotency-key` para mover pallets o cajas de un casillero a otro libremente en tiempo real. Queda registrado para auditoría ex-post del Jefe de Bodega.
+--> Despacho de Mercancía (Outbound) [x-idempotency-key]
+---> Descripción: Lista de despachos con `x-idempotency-key`. **Si es stock propio de la empresa, lo ejecuta directo**; **si es stock 3PL, despacha únicamente órdenes con solicitud en `APPROVED`**.
 
 -> Asistente Telegram IA (En Terreno)
 --> Vinculación Telegram
@@ -361,10 +356,10 @@ Para dar soporte a usuarios con múltiples asignaciones (`user_warehouse_assignm
 
 ---
 
-### 🛒 7. SIDEBAR: PORTAL CLIENTE 3PL (`CLIENT_VIEWER` - Dueño de Mercancía)
+### 🛒 7. PORTAL CLIENTE 3PL (`CLIENT_VIEWER` - Dueño de Mercancía)
 
 -> Home / Mi Stock en Custodia
---> Descripción: Portal de autoservicio exclusivo para el cliente 3PL propietario de la mercancía (`client_owner_id`). Muestra resumen de su stock total almacenado, volumen ocupado en m³ en las bodegas del operador 3PL, estado de solicitudes de despacho recientes y resumen de cobro de almacenamiento del mes. *(Sesión segura de 4h con auto-bloqueo tras 15 min de inactividad)*.
+--> Descripción: Portal de autoservicio exclusivo para el cliente 3PL propietario de la mercancía (`client_owner_id`). Muestra resumen de su stock total almacenado, volumen ocupado en m³ en las bodegas del operador 3PL, estado de solicitudes de despacho recientes y resumen de cobro de almacenamiento del mes. *(Sesión segura de 4h con validación server-side de inactividad a los 15 min)*.
 
 -> Solicitudes de Despacho (Outbound 3PL)
 --> Emitir Nueva Solicitud de Despacho
@@ -394,20 +389,18 @@ Para dar soporte a usuarios con múltiples asignaciones (`user_warehouse_assignm
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Configuración SaaS & Planes** | 🟢 Total | ❌ Sin Acceso | ❌ Sin Acceso | ❌ Sin Acceso | ❌ Sin Acceso | ❌ Sin Acceso | ❌ Sin Acceso |
 | **Ver Todas las Empresas** | 🟢 Total | 🟡 Solo Cartola | ❌ Solo la Propia | ❌ Solo la Propia | ❌ Solo la Propia | ❌ Solo la Propia | ❌ Solo la Propia |
+| **Jerarquía Permisos (AND)** | 🟢 Global | 🟢 Cartola | 🟢 Empresa | 🟡 Acciones AND Alcance | 🟡 Acciones AND Alcance | 🟢 Comercial | 👁️ Solo su Stock |
+| **PostgreSQL RLS (Level Security)** | 🛡️ Bypass Super | 🛡️ Filtro Cartola | 🛡️ Policy Tenant | 🛡️ Policy Tenant | 🛡️ Policy Tenant | 🛡️ Policy Tenant | 🛡️ Policy Client |
 | **Audit Log Acceso Datos Sensibles** | 🟢 Audit Logs | 🟢 Audit Logs | ❌ Sin Acceso | ❌ Sin Acceso | ❌ Sin Acceso | ❌ Sin Acceso | ❌ Sin Acceso |
 | **Validación Límites Plan (Alerta 90%)**| 🟢 Configura | 👁️ Oportunidades | 🟡 Alerta 90%/🔴402 | ❌ Sin Acceso | ❌ Sin Acceso | ❌ Sin Acceso | ❌ Sin Acceso |
 | **Selector de Bodega (Header Switcher)**| ❌ Global | ❌ Cartola | ❌ Todas Bodegas | 🟢 Multi-Bodega | 🟢 Multi-Bodega | ❌ Sin Acceso | ❌ Sin Acceso |
+| **Idempotencia Terreno (`x-idempotency-key`)**| ❌ N/A | ❌ N/A | 🟢 En Formularios | 🟢 En Formularios | 🟢 En Formularios | ❌ N/A | ❌ N/A |
+| **Despacho Outbound Stock Propio** | 🟢 Total | ❌ Sin Acceso | 🟢 Directo | 🟢 Directo | 🟢 Directo | ❌ Sin Acceso | ❌ N/A |
+| **Despacho Outbound Stock 3PL** | 🟢 Total | ❌ Sin Acceso | 🔴 Exige APPROVED | 🔴 Exige APPROVED | 🔴 Exige APPROVED | ❌ Sin Acceso | 🟢 Solicita PENDING |
 | **Crear/Editar Bodegas & Jerarquía** | 🟢 Total | 👁️ Lectura | 🟢 Total | 🟡 Solo Casilleros | ❌ Sin Acceso | ❌ Sin Acceso | ❌ Sin Acceso |
 | **Plano 2D Interactivo de Bodega** | 🟢 Total | 🟢 Total | 🟢 Total | 🟢 Su Bodega | 🟢 Operativo | 👁️ Lectura | 👁️ Solo su Stock |
 | **Configurar Tarifas & Whitelist AST** | 🟢 Total | 👁️ Lectura | 🟢 Total | 👁️ Solo Lectura | ❌ Sin Acceso | 👁️ Solo Lectura | ❌ Sin Acceso |
 | **Simulador de Costos (Puro Memoria)**| 🟢 Total | 🟢 Total | 🟢 Total | ❌ Sin Acceso | ❌ Sin Acceso | 🟢 Total | ❌ Sin Acceso |
-| **Emitir Solicitud Despacho (`dispatch_requests`)** | ❌ N/A | ❌ N/A | ❌ N/A | ❌ N/A | ❌ N/A | ❌ N/A | 🟢 Emite Solicitud |
-| **Aprobar Solicitud Despacho** | 🟢 Total | ❌ Sin Acceso | 🟢 Total | 🟢 Su Bodega | ❌ Sin Acceso | ❌ Sin Acceso | ❌ Sin Acceso |
-| **Ingreso / Reubicación Directa Stock**| 🟢 Total | ❌ Sin Acceso | 🟢 Total | 🟢 Su Bodega | 🟢 Directo Terreno | ❌ Sin Acceso | ❌ Sin Acceso |
-| **Ejecución Despacho Aprobado** | 🟢 Total | ❌ Sin Acceso | 🟢 Total | 🟢 Su Bodega | 🟢 Despacha Aprobado| ❌ Sin Acceso | ❌ Sin Acceso |
-| **Supervisión Ex-Post Reubicaciones** | 🟢 Total | 👁️ Lectura | 🟢 Total | 🟢 Audita Ex-Post | ❌ Sin Acceso | ❌ Sin Acceso | ❌ Sin Acceso |
-| **Kardex de Movimientos** | 🟢 Total | 👁️ Lectura | 🟢 Total | 👁️ Su Bodega | 👁️ Mis Movimientos | 👁️ Reporte Comercial| 👁️ Solo su Stock |
-| **Catálogo SKUs & Onboarding 3PL** | 🟢 Total | 👁️ Lectura | 🟢 Total | 👁️ Lectura | 👁️ Lectura | 🟢 Onboarding Email | 👁️ Sus Productos |
 | **Bot Telegram (Aislamiento Pre-SQL)**| 🟢 Admin Bot | 👁️ Lectura | 🟢 Alertas Push | 🟢 Alertas Push | 🟢 Pre-SQL Filter | 👁️ Lectura | ❌ Sin Acceso |
 
 ---
