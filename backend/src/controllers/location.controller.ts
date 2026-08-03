@@ -20,7 +20,56 @@ export async function createBranch(req: AuthRequest, res: Response) {
   return sendSuccess(res, branch, 201, 'Sucursal creada exitosamente');
 }
 
-// --- BODEGAS (WAREHOUSES) ---
+// --- BODEGAS ASIGNADAS Y BODEGAS (WAREHOUSES) ---
+export async function getMyAssignedWarehouses(req: AuthRequest, res: Response) {
+  const userId = req.user?.userId;
+  const companyId = req.user?.companyId;
+  const roleCode = req.user?.roleCode;
+
+  if (roleCode === 'SUPER_ADMIN' || roleCode === 'COMPANY_ADMIN') {
+    // Para administradores, listar todas las bodegas de la empresa (o globales)
+    const warehouses = await prisma.warehouses.findMany({
+      where: {
+        ...(companyId ? { company_id: companyId } : {}),
+        deleted_at: null,
+      },
+      include: { branches: true },
+    });
+    return sendSuccess(
+      res,
+      warehouses.map((w) => ({
+        id: w.id,
+        name: w.name,
+        code: w.code,
+        branchName: w.branches?.name,
+        isCostTrackingEnabled: w.is_cost_tracking_enabled,
+      }))
+    );
+  }
+
+  // Para WAREHOUSE_MANAGER o WAREHOUSE_OPERATOR, consultar user_warehouse_assignments
+  const assignments = await prisma.user_warehouse_assignments.findMany({
+    where: { user_id: userId },
+    include: {
+      warehouses: {
+        include: { branches: true },
+      },
+    },
+  });
+
+  const assignedWarehouses = assignments
+    .filter((a) => a.warehouses && !a.warehouses.deleted_at)
+    .map((a) => ({
+      id: a.warehouses.id,
+      name: a.warehouses.name,
+      code: a.warehouses.code,
+      branchName: a.warehouses.branches?.name,
+      isCostTrackingEnabled: a.warehouses.is_cost_tracking_enabled,
+    }));
+
+  return sendSuccess(res, assignedWarehouses);
+}
+
 export async function getWarehouses(req: AuthRequest, res: Response) {
   const companyId = req.user?.companyId;
   const warehouses = await prisma.warehouses.findMany({

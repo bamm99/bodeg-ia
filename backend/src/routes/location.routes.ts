@@ -3,6 +3,7 @@ import {
   getBranches,
   createBranch,
   getWarehouses,
+  getMyAssignedWarehouses,
   getWarehouseTree,
   createWarehouse,
   updateWarehouse,
@@ -32,6 +33,9 @@ import {
 const router = Router();
 
 router.use(authenticateToken);
+
+// Bodegas asignadas al usuario actual
+router.get('/my-assigned-warehouses', getMyAssignedWarehouses);
 
 // Sucursales
 router.get('/branches', getBranches);
