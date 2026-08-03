@@ -12,8 +12,11 @@ export async function withTenant<T>(
   fn: (tx: typeof prisma) => Promise<T>
 ): Promise<T> {
   return prisma.$transaction(async (tx) => {
-    // Establecer la variable de sesión app.current_tenant_id para RLS
+    // Cambiar a rol no-superusuario para obligar a PostgreSQL a evaluar las políticas RLS
+    await tx.$executeRawUnsafe(`SET LOCAL ROLE bodegia_app_user;`);
+    await tx.$executeRawUnsafe(`SET LOCAL app.current_company_id = '${companyId}';`);
     await tx.$executeRawUnsafe(`SET LOCAL app.current_tenant_id = '${companyId}';`);
     return fn(tx as typeof prisma);
   });
 }
+

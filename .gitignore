@@ -37,4 +37,11 @@ ENV/
 logs/
 
 # Prisma
-backend/prisma/migrations/
+backend/prisma/migrations/*
+!backend/prisma/migrations/enable_pg_rls.sql
+
+
+# Plans & Documentation drafts
+plan.md
+checklist.md
+
