@@ -59,19 +59,21 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) =>
     fetchOverview();
   }, [token]);
 
-  const sidebarMenu = [
-    { id: 'dashboard', label: 'Resumen Dashboard', icon: LayoutDashboard, isReady: true },
-    { id: 'companies', label: 'Empresas & Sucursales', icon: Building2, isReady: true },
-    { id: 'plans', label: 'Planes SaaS & Cuotas', icon: Crown, isReady: true },
-    { id: 'executives', label: 'Asignación de Cartolas', icon: Briefcase, isReady: true },
-    { id: 'map2d', label: 'Plano 2D de Bodegas', icon: Layers, isReady: false },
-    { id: 'costs', label: 'Tarifario & Costos AST', icon: DollarSign, isReady: false },
-    { id: 'inventory', label: 'Inventario & Kardex', icon: Package, isReady: false },
-    { id: 'catalog', label: 'Catálogo de Productos', icon: ShoppingCart, isReady: false },
-    { id: 'clients', label: 'Clientes 3PL', icon: Users, isReady: false },
-    { id: 'rbac', label: 'Usuarios & Permisos RBAC', icon: ShieldCheck, isReady: false },
-    { id: 'settings', label: 'Configuración Sistema', icon: Settings, isReady: false },
+  const allSidebarMenuItems = [
+    { id: 'dashboard', label: 'Resumen Dashboard', icon: LayoutDashboard, isReady: true, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_OPERATOR', 'CLIENT_VIEWER'] },
+    { id: 'companies', label: roleCode === 'SUPER_ADMIN' ? 'Empresas & Sucursales' : roleCode === 'PLATFORM_ADMIN' ? 'Cartola de Empresas' : 'Mi Empresa & Sucursales', icon: Building2, isReady: true, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN'] },
+    { id: 'plans', label: 'Planes SaaS & Cuotas', icon: Crown, isReady: true, roles: ['SUPER_ADMIN'] },
+    { id: 'executives', label: 'Asignación de Cartolas', icon: Briefcase, isReady: true, roles: ['SUPER_ADMIN'] },
+    { id: 'map2d', label: 'Plano 2D de Bodegas', icon: Layers, isReady: false, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_OPERATOR'] },
+    { id: 'costs', label: 'Tarifario & Costos AST', icon: DollarSign, isReady: false, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER'] },
+    { id: 'inventory', label: 'Inventario & Kardex', icon: Package, isReady: false, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_OPERATOR', 'CLIENT_VIEWER'] },
+    { id: 'catalog', label: 'Catálogo de Productos', icon: ShoppingCart, isReady: false, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_OPERATOR'] },
+    { id: 'clients', label: 'Clientes 3PL', icon: Users, isReady: false, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'CLIENT_VIEWER'] },
+    { id: 'rbac', label: 'Usuarios & Permisos RBAC', icon: ShieldCheck, isReady: false, roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
+    { id: 'settings', label: 'Configuración Sistema', icon: Settings, isReady: false, roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
   ];
+
+  const sidebarMenu = allSidebarMenuItems.filter((m) => m.roles.includes(roleCode));
 
   const currentMenuItem = sidebarMenu.find((m) => m.id === activeSection);
 

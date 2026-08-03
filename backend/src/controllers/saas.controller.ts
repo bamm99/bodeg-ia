@@ -173,15 +173,37 @@ export async function getCompanies(req: AuthRequest, res: Response) {
   const limit = Number(req.query.limit || 20);
   const skip = (page - 1) * limit;
 
+  const roleCode = req.user?.roleCode;
+  const companyId = req.user?.companyId;
+  const userId = req.user?.userId;
+
+  let whereClause: any = { deleted_at: null };
+
+  if (roleCode === 'SUPER_ADMIN') {
+    // Super Admin ve todas las empresas
+    whereClause = { deleted_at: null };
+  } else if (roleCode === 'PLATFORM_ADMIN') {
+    // Ejecutivo ve únicamente las empresas de su cartola asignada
+    const accessRecords = await prisma.user_company_access.findMany({
+      where: { user_id: userId },
+      select: { company_id: true },
+    });
+    const assignedIds = accessRecords.map((a) => a.company_id);
+    whereClause = { id: { in: assignedIds }, deleted_at: null };
+  } else {
+    // COMPANY_ADMIN u otros roles de empresa ven ÚNICAMENTE su propia empresa
+    whereClause = { id: companyId || '00000000-0000-0000-0000-000000000000', deleted_at: null };
+  }
+
   const [companies, total] = await Promise.all([
     prisma.companies.findMany({
-      where: { deleted_at: null },
+      where: whereClause,
       include: { subscriptions: { include: { plans: true } } },
       skip,
       take: limit,
       orderBy: { created_at: 'desc' },
     }),
-    prisma.companies.count({ where: { deleted_at: null } }),
+    prisma.companies.count({ where: whereClause }),
   ]);
 
   return sendPaginated(res, companies, {
@@ -194,6 +216,27 @@ export async function getCompanies(req: AuthRequest, res: Response) {
 
 export async function getCompanyById(req: AuthRequest, res: Response) {
   const { id } = req.params;
+  const roleCode = req.user?.roleCode;
+  const companyId = req.user?.companyId;
+  const userId = req.user?.userId;
+
+  // Verificación estricta de aislamiento Multi-Tenant
+  if (roleCode !== 'SUPER_ADMIN') {
+    if (roleCode === 'PLATFORM_ADMIN') {
+      const accessRecord = await prisma.user_company_access.findFirst({
+        where: { user_id: userId, company_id: id },
+      });
+      if (!accessRecord) {
+        return sendError(res, 'Acceso denegado. Esta empresa no pertenece a tu cartola asignada.', 403);
+      }
+    } else {
+      // COMPANY_ADMIN u otros roles sólo pueden ver la información de su propia empresa
+      if (id !== companyId) {
+        return sendError(res, 'Acceso denegado. No tienes permiso para ver información de otra empresa.', 403);
+      }
+    }
+  }
+
   const company = await prisma.companies.findUnique({
     where: { id },
     include: {

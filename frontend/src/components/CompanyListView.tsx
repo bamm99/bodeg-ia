@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Building2, Plus, Search, Eye, Crown, ChevronLeft, ChevronRight, CheckCircle2, XCircle } from 'lucide-react';
 import { apiFetch } from '../config/api';
+import { useAuth } from '../context/AuthContext';
 import { CompanyCreateWizard } from './CompanyCreateWizard';
 import { CompanyDetailModal } from './CompanyDetailModal';
 
 export const CompanyListView: React.FC = () => {
+  const { user } = useAuth();
+  const roleCode = user?.role?.code || (user as any)?.roleCode || '';
+
   const [companies, setCompanies] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -50,17 +54,21 @@ export const CompanyListView: React.FC = () => {
         <div>
           <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Building2 size={24} color="var(--primary)" />
-            <span>Gestión de Empresas SaaS</span>
+            <span>{roleCode === 'SUPER_ADMIN' ? 'Gestión de Empresas SaaS' : roleCode === 'PLATFORM_ADMIN' ? 'Cartola de Empresas Asignadas' : 'Mi Empresa & Sucursales'}</span>
           </h1>
           <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Administra las empresas clientes multi-tenant, sus planes activos y cuotas operativas.
+            {roleCode === 'SUPER_ADMIN'
+              ? 'Administra las empresas clientes multi-tenant, sus planes activos y cuotas operativas.'
+              : 'Información de tu organización y cuotas de consumo.'}
           </p>
         </div>
 
-        <button onClick={() => setIsWizardOpen(true)} className="btn btn-primary">
-          <Plus size={16} />
-          <span>Alta de Nueva Empresa</span>
-        </button>
+        {roleCode === 'SUPER_ADMIN' && (
+          <button onClick={() => setIsWizardOpen(true)} className="btn btn-primary">
+            <Plus size={16} />
+            <span>Alta de Nueva Empresa</span>
+          </button>
+        )}
       </div>
 
       {/* Search Bar */}
