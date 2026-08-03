@@ -21,6 +21,9 @@ import { useAuth } from '../context/AuthContext';
 import { InDevelopment } from './InDevelopment';
 import { API_BASE_URL } from '../config/api';
 import { WarehouseSwitcherDropdown } from './WarehouseSwitcherDropdown';
+import { CompanyListView } from './CompanyListView';
+import { PlanManagerView } from './PlanManagerView';
+import { ExecutiveAssignmentView } from './ExecutiveAssignmentView';
 
 interface DashboardLayoutProps {
   onLogout: () => void;
@@ -58,12 +61,14 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) =>
 
   const sidebarMenu = [
     { id: 'dashboard', label: 'Resumen Dashboard', icon: LayoutDashboard, isReady: true },
+    { id: 'companies', label: 'Empresas & Sucursales', icon: Building2, isReady: true },
+    { id: 'plans', label: 'Planes SaaS & Cuotas', icon: Crown, isReady: true },
+    { id: 'executives', label: 'Asignación de Cartolas', icon: Briefcase, isReady: true },
     { id: 'map2d', label: 'Plano 2D de Bodegas', icon: Layers, isReady: false },
     { id: 'costs', label: 'Tarifario & Costos AST', icon: DollarSign, isReady: false },
     { id: 'inventory', label: 'Inventario & Kardex', icon: Package, isReady: false },
     { id: 'catalog', label: 'Catálogo de Productos', icon: ShoppingCart, isReady: false },
     { id: 'clients', label: 'Clientes 3PL', icon: Users, isReady: false },
-    { id: 'companies', label: 'Empresas & Sucursales', icon: Building2, isReady: false },
     { id: 'rbac', label: 'Usuarios & Permisos RBAC', icon: ShieldCheck, isReady: false },
     { id: 'settings', label: 'Configuración Sistema', icon: Settings, isReady: false },
   ];
@@ -401,6 +406,12 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) =>
                 </div>
               )}
             </div>
+          ) : activeSection === 'companies' ? (
+            <CompanyListView />
+          ) : activeSection === 'plans' ? (
+            <PlanManagerView />
+          ) : activeSection === 'executives' ? (
+            <ExecutiveAssignmentView />
           ) : (
             <InDevelopment
               sectionTitle={currentMenuItem?.label || activeSection}
