@@ -20,54 +20,67 @@ export const PlanUsageBar: React.FC<PlanUsageBarProps> = ({
   const isWarning90 = percent >= 90;
   const isLimit100 = percent >= 100;
 
-  let barColorClass = 'bg-emerald-500';
+  let barBg = 'var(--accent)';
   if (isLimit100) {
-    barColorClass = 'bg-rose-500';
+    barBg = 'var(--danger)';
   } else if (isWarning90) {
-    barColorClass = 'bg-amber-500';
+    barBg = 'var(--warning)';
   }
 
   const renderIcon = () => {
     switch (iconType) {
       case 'users':
-        return <Users className="w-4 h-4 text-slate-400" />;
+        return <Users size={16} color="var(--primary)" />;
       case 'storage':
-        return <Database className="w-4 h-4 text-slate-400" />;
+        return <Database size={16} color="var(--secondary)" />;
       default:
-        return <Building2 className="w-4 h-4 text-slate-400" />;
+        return <Building2 size={16} color="var(--accent)" />;
     }
   };
 
   return (
-    <div className="flex flex-col gap-1.5 p-3 rounded-xl bg-slate-900/60 border border-slate-800">
-      <div className="flex items-center justify-between text-xs">
-        <div className="flex items-center gap-2">
+    <div
+      className="glass-panel"
+      style={{
+        padding: '14px 16px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '10px',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {renderIcon()}
-          <span className="font-semibold text-slate-300">{label}</span>
+          <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{label}</span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {isWarning90 && (
-            <span className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">
-              <AlertTriangle className="w-3 h-3" />
+            <span className={isLimit100 ? 'badge badge-danger' : 'badge badge-warning'}>
+              <AlertTriangle size={12} />
               {isLimit100 ? '100% Alcanzado' : '90% Capacidad'}
             </span>
           )}
-          <span className="font-mono text-slate-200">
+          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--text-main)' }}>
             {current} / {max} {unit}
           </span>
         </div>
       </div>
 
-      {/* Progress Track */}
-      <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+      {/* Track */}
+      <div style={{ width: '100%', height: '8px', background: 'rgba(255, 255, 255, 0.06)', borderRadius: '4px', overflow: 'hidden' }}>
         <div
-          className={`h-full transition-all duration-500 rounded-full ${barColorClass}`}
-          style={{ width: `${percent}%` }}
+          style={{
+            height: '100%',
+            width: `${percent}%`,
+            background: barBg,
+            borderRadius: '4px',
+            transition: 'width 0.5s ease',
+          }}
         />
       </div>
 
-      <div className="flex justify-end text-[10px] text-slate-500 font-mono">
+      <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
         {percent}% utilizado
       </div>
     </div>

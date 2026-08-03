@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Building2, ArrowRight, ArrowLeft, CheckCircle, Crown, AlertCircle } from 'lucide-react';
+import { Building2, ArrowRight, ArrowLeft, CheckCircle, Crown, AlertCircle, X } from 'lucide-react';
 import { apiFetch, generateIdempotencyKey } from '../config/api';
 
 export interface CompanyCreateWizardProps {
@@ -107,48 +107,37 @@ export const CompanyCreateWizard: React.FC<CompanyCreateWizardProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-2xl rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl p-6 overflow-hidden">
+    <div className="modal-backdrop">
+      <div className="modal-card" style={{ maxWidth: '650px' }}>
         {/* Header Stepper */}
-        <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-6">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <Building2 className="w-5 h-5" />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '16px', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div className="badge badge-primary" style={{ padding: '8px 12px', borderRadius: '12px' }}>
+              <Building2 size={20} color="var(--primary)" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-100">Alta de Nueva Empresa Client</h2>
-              <p className="text-xs text-slate-400">Paso {step} de 3 — Configuración Multi-Tenant</p>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-main)' }}>Alta de Nueva Empresa Cliente</h2>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Paso {step} de 3 — Configuración Multi-Tenant</p>
             </div>
           </div>
 
-          <div className="flex gap-1.5">
-            {[1, 2, 3].map((s) => (
-              <div
-                key={s}
-                className={`w-7 h-1.5 rounded-full transition-colors ${
-                  s === step
-                    ? 'bg-emerald-500'
-                    : s < step
-                    ? 'bg-emerald-500/40'
-                    : 'bg-slate-800'
-                }`}
-              />
-            ))}
-          </div>
+          <button onClick={onClose} className="btn btn-secondary" style={{ padding: '6px' }}>
+            <X size={18} />
+          </button>
         </div>
 
         {errorMsg && (
-          <div className="mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
+          <div className="badge badge-danger" style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', marginBottom: '16px', fontSize: '0.8rem' }}>
+            <AlertCircle size={16} />
             <span>{errorMsg}</span>
           </div>
         )}
 
         {/* STEP 1: Datos de la Empresa */}
         {step === 1 && (
-          <div className="space-y-4">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '6px' }}>
                 Razón Social / Nombre Comercial *
               </label>
               <input
@@ -156,13 +145,13 @@ export const CompanyCreateWizard: React.FC<CompanyCreateWizardProps> = ({
                 placeholder="Ej: Distribuidora Agrosur SpA"
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-emerald-500"
+                className="input-field"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '6px' }}>
                   RUT Empresa * (Chileno)
                 </label>
                 <input
@@ -170,11 +159,11 @@ export const CompanyCreateWizard: React.FC<CompanyCreateWizardProps> = ({
                   placeholder="76.543.210-K"
                   value={taxId}
                   onChange={(e) => setTaxId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-emerald-500"
+                  className="input-field"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '6px' }}>
                   Teléfono de Contacto
                 </label>
                 <input
@@ -182,13 +171,13 @@ export const CompanyCreateWizard: React.FC<CompanyCreateWizardProps> = ({
                   placeholder="+56 9 1234 5678"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-emerald-500"
+                  className="input-field"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '6px' }}>
                 Dirección Matriz / Casa Matriz
               </label>
               <input
@@ -196,25 +185,17 @@ export const CompanyCreateWizard: React.FC<CompanyCreateWizardProps> = ({
                 placeholder="Av. Américo Vespucio 1500, Pudahuel"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-emerald-500"
+                className="input-field"
               />
             </div>
 
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium"
-              >
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', paddingTop: '16px', borderTop: '1px solid var(--border-color)' }}>
+              <button type="button" onClick={onClose} className="btn btn-secondary">
                 Cancelar
               </button>
-              <button
-                type="button"
-                onClick={handleNextStep1}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold"
-              >
-                Siguiente: Seleccionar Plan
-                <ArrowRight className="w-4 h-4" />
+              <button type="button" onClick={handleNextStep1} className="btn btn-primary">
+                <span>Siguiente: Seleccionar Plan</span>
+                <ArrowRight size={16} />
               </button>
             </div>
           </div>
@@ -222,9 +203,9 @@ export const CompanyCreateWizard: React.FC<CompanyCreateWizardProps> = ({
 
         {/* STEP 2: Selección de Plan */}
         {step === 2 && (
-          <div className="space-y-4">
-            <p className="text-xs text-slate-400">Selecciona el plan contratado para la empresa:</p>
-            <div className="grid grid-cols-3 gap-3">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Selecciona el plan contratado para la empresa:</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
               {[
                 { name: 'BASIC', label: 'Básico', limits: '1 Bodega • 5 User • 500m³' },
                 { name: 'PRO', label: 'Profesional', limits: '5 Bodegas • 25 User • 2.500m³' },
@@ -233,34 +214,29 @@ export const CompanyCreateWizard: React.FC<CompanyCreateWizardProps> = ({
                 <div
                   key={p.name}
                   onClick={() => setSelectedPlanName(p.name)}
-                  className={`p-4 rounded-xl border cursor-pointer transition-all ${
-                    selectedPlanName === p.name
-                      ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400'
-                      : 'bg-slate-800/40 border-slate-800 text-slate-400 hover:border-slate-700'
-                  }`}
+                  className="glass-panel"
+                  style={{
+                    padding: '16px',
+                    cursor: 'pointer',
+                    borderColor: selectedPlanName === p.name ? 'var(--primary)' : 'var(--border-color)',
+                    background: selectedPlanName === p.name ? 'var(--primary-glow)' : 'rgba(15, 23, 42, 0.75)',
+                    transition: 'all 0.2s ease',
+                  }}
                 >
-                  <Crown className="w-5 h-5 mb-2" />
-                  <h3 className="font-bold text-sm text-slate-200">{p.label}</h3>
-                  <p className="text-[10px] text-slate-400 mt-1">{p.limits}</p>
+                  <Crown size={20} color="var(--primary)" style={{ marginBottom: '8px' }} />
+                  <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-main)' }}>{p.label}</h3>
+                  <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>{p.limits}</p>
                 </div>
               ))}
             </div>
 
-            <div className="flex justify-between gap-3 pt-4 border-t border-slate-800">
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                className="flex items-center gap-1 px-4 py-2 rounded-lg bg-slate-800 text-slate-300 text-xs"
-              >
-                <ArrowLeft className="w-4 h-4" /> Atrás
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', paddingTop: '16px', borderTop: '1px solid var(--border-color)' }}>
+              <button type="button" onClick={() => setStep(1)} className="btn btn-secondary">
+                <ArrowLeft size={16} /> Atrás
               </button>
-              <button
-                type="button"
-                onClick={handleNextStep2}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold"
-              >
-                Siguiente: Administrador Initial
-                <ArrowRight className="w-4 h-4" />
+              <button type="button" onClick={handleNextStep2} className="btn btn-primary">
+                <span>Siguiente: Administrador Inicial</span>
+                <ArrowRight size={16} />
               </button>
             </div>
           </div>
@@ -268,9 +244,9 @@ export const CompanyCreateWizard: React.FC<CompanyCreateWizardProps> = ({
 
         {/* STEP 3: Administrador Inicial */}
         {step === 3 && (
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '6px' }}>
                 Nombre Completo del Administrador *
               </label>
               <input
@@ -278,12 +254,12 @@ export const CompanyCreateWizard: React.FC<CompanyCreateWizardProps> = ({
                 placeholder="Ej: Juan Pérez Morales"
                 value={adminFullName}
                 onChange={(e) => setAdminFullName(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-emerald-500"
+                className="input-field"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '6px' }}>
                 Email de Registro (Login) *
               </label>
               <input
@@ -291,12 +267,12 @@ export const CompanyCreateWizard: React.FC<CompanyCreateWizardProps> = ({
                 placeholder="admin@empresa.cl"
                 value={adminEmail}
                 onChange={(e) => setAdminEmail(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-emerald-500"
+                className="input-field"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '6px' }}>
                 Contraseña Inicial *
               </label>
               <input
@@ -304,25 +280,17 @@ export const CompanyCreateWizard: React.FC<CompanyCreateWizardProps> = ({
                 placeholder="••••••••••••"
                 value={adminPassword}
                 onChange={(e) => setAdminPassword(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-emerald-500"
+                className="input-field"
               />
             </div>
 
-            <div className="flex justify-between gap-3 pt-4 border-t border-slate-800">
-              <button
-                type="button"
-                onClick={() => setStep(2)}
-                className="flex items-center gap-1 px-4 py-2 rounded-lg bg-slate-800 text-slate-300 text-xs"
-              >
-                <ArrowLeft className="w-4 h-4" /> Atrás
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', paddingTop: '16px', borderTop: '1px solid var(--border-color)' }}>
+              <button type="button" onClick={() => setStep(2)} className="btn btn-secondary">
+                <ArrowLeft size={16} /> Atrás
               </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className="flex items-center gap-2 px-5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-extrabold shadow-lg shadow-emerald-500/20"
-              >
+              <button type="submit" disabled={loading} className="btn btn-accent">
                 {loading ? 'Registrando...' : 'Finalizar & Crear Empresa'}
-                <CheckCircle className="w-4 h-4" />
+                <CheckCircle size={16} />
               </button>
             </div>
           </form>

@@ -43,47 +43,42 @@ export const PlanUpgradeModal: React.FC<PlanUpgradeModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-4xl rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl p-6 overflow-hidden">
-        {/* Decorative Top Glow */}
-        <div className="absolute -top-24 -right-24 w-60 h-60 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
-        >
-          <X className="w-5 h-5" />
-        </button>
-
+    <div className="modal-backdrop">
+      <div className="modal-card" style={{ maxWidth: '850px' }}>
         {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
-          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
-            <Crown className="w-6 h-6" />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div className="badge badge-warning" style={{ padding: '8px 12px', borderRadius: '12px' }}>
+              <Crown size={20} color="var(--warning)" />
+            </div>
+            <div>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-main)' }}>
+                Actualizar Plan SaaS — Escala tus Operaciones
+              </h2>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                {limitReason ||
+                  `Tu plan actual (${currentPlanName}) ha alcanzado sus cuotas operativas. Elige un plan superior.`}
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-xl font-extrabold text-slate-100">
-              Actualizar Plan SaaS — Escala tus Operaciones
-            </h2>
-            <p className="text-xs text-slate-400">
-              {limitReason ||
-                `Tu plan actual (${currentPlanName}) ha alcanzado sus cuotas operativas. Elige un plan superior.`}
-            </p>
-          </div>
+
+          <button onClick={onClose} className="btn btn-secondary" style={{ padding: '6px' }}>
+            <X size={18} />
+          </button>
         </div>
 
-        {/* Reason Alert Banner if HTTP 402 triggered */}
+        {/* Reason Alert Banner */}
         {limitReason && (
-          <div className="mb-6 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center gap-3 text-xs text-rose-300">
-            <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
+          <div className="badge badge-danger" style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', marginBottom: '20px', fontSize: '0.8rem' }}>
+            <ShieldAlert size={16} />
             <span>{limitReason}</span>
           </div>
         )}
 
         {/* Plans Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginBottom: '24px' }}>
           {loading ? (
-            <div className="col-span-3 text-center py-10 text-slate-500 text-sm">
+            <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
               Cargando planes disponibles...
             </div>
           ) : (
@@ -92,41 +87,41 @@ export const PlanUpgradeModal: React.FC<PlanUpgradeModalProps> = ({
               return (
                 <div
                   key={p.id}
-                  className={`flex flex-col justify-between p-5 rounded-xl border transition-all ${
-                    isCurrent
-                      ? 'bg-slate-800/40 border-slate-700 opacity-70'
-                      : 'bg-slate-900/80 border-slate-800 hover:border-emerald-500/50 hover:shadow-lg'
-                  }`}
+                  className="glass-panel"
+                  style={{
+                    padding: '20px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    opacity: isCurrent ? 0.65 : 1,
+                    borderColor: isCurrent ? 'var(--border-color)' : 'var(--border-accent)',
+                  }}
                 >
                   <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <h3 className="font-bold text-slate-200 text-base">{p.name}</h3>
-                      {isCurrent && (
-                        <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded bg-slate-700 text-slate-300">
-                          Actual
-                        </span>
-                      )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                      <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>{p.name}</h3>
+                      {isCurrent && <span className="badge badge-primary">Actual</span>}
                     </div>
 
-                    <div className="mb-4">
-                      <span className="text-2xl font-black text-emerald-400">
+                    <div style={{ marginBottom: '16px' }}>
+                      <span style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--primary)' }}>
                         ${Number(p.price_monthly).toLocaleString('es-CL')}
                       </span>
-                      <span className="text-xs text-slate-400 font-normal"> / mes {p.currency}</span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}> / mes {p.currency}</span>
                     </div>
 
-                    <ul className="space-y-2 text-xs text-slate-300 mb-6">
-                      <li className="flex items-center gap-2">
-                        <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                        <span>Hasta {p.max_warehouses} Bodega(s)</span>
+                    <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '24px' }}>
+                      <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Check size={14} color="var(--accent)" />
+                        <span>Hasta <strong>{p.max_warehouses}</strong> Bodega(s)</span>
                       </li>
-                      <li className="flex items-center gap-2">
-                        <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                        <span>Hasta {p.max_users} Usuarios</span>
+                      <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Check size={14} color="var(--accent)" />
+                        <span>Hasta <strong>{p.max_users}</strong> Usuarios</span>
                       </li>
-                      <li className="flex items-center gap-2">
-                        <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                        <span>Hasta {p.max_storage_m3} m³ Almacenamiento</span>
+                      <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Check size={14} color="var(--accent)" />
+                        <span>Hasta <strong>{p.max_storage_m3} m³</strong> Almacenamiento</span>
                       </li>
                     </ul>
                   </div>
@@ -137,14 +132,11 @@ export const PlanUpgradeModal: React.FC<PlanUpgradeModalProps> = ({
                       alert(`Solicitud de actualización al plan ${p.name} enviada. Un Ejecutivo te contactará a la brevedad.`);
                       onClose();
                     }}
-                    className={`w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg font-semibold text-xs transition-colors ${
-                      isCurrent
-                        ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                        : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-lg shadow-emerald-500/20'
-                    }`}
+                    className={isCurrent ? 'btn btn-secondary' : 'btn btn-primary'}
+                    style={{ width: '100%' }}
                   >
                     <span>{isCurrent ? 'Plan Actual' : 'Seleccionar Plan'}</span>
-                    {!isCurrent && <ArrowRight className="w-3.5 h-3.5" />}
+                    {!isCurrent && <ArrowRight size={14} />}
                   </button>
                 </div>
               );
@@ -153,12 +145,9 @@ export const PlanUpgradeModal: React.FC<PlanUpgradeModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex justify-between items-center text-xs text-slate-500 border-t border-slate-800 pt-4">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: 'var(--text-muted)', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
           <span>¿Necesitas un plan personalizado Enterprise? Contacta a ventas@bodegia.cl</span>
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium transition-colors"
-          >
+          <button onClick={onClose} className="btn btn-secondary">
             Cerrar
           </button>
         </div>

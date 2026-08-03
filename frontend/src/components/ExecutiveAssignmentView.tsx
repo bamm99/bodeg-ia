@@ -18,7 +18,6 @@ export const ExecutiveAssignmentView: React.FC = () => {
       if (res.data) setCompanies(res.data);
     });
 
-    // Cargar ejecutivos (usuarios PLATFORM_ADMIN)
     apiFetch('/saas/companies/1').catch(() => {}); // warmup
   }, []);
 
@@ -65,45 +64,45 @@ export const ExecutiveAssignmentView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-extrabold text-slate-100 flex items-center gap-2">
-          <UserCheck className="w-6 h-6 text-emerald-400" />
+        <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <UserCheck size={24} color="var(--primary)" />
           <span>Asignación de Cartolas a Ejecutivos (Portfolio Manager)</span>
         </h1>
-        <p className="text-xs text-slate-400 mt-1">
+        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
           Distribuye empresas clientes entre Ejecutivos de Cuenta (PLATFORM_ADMIN) y consulta la trazabilidad de auditoría.
         </p>
       </div>
 
       {/* Form Panel */}
-      <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              Seleccionar ID / Email de Ejecutivo (PLATFORM_ADMIN)
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '6px' }}>
+              ID / UUID de Ejecutivo (PLATFORM_ADMIN)
             </label>
             <input
               type="text"
-              placeholder="UUID de Usuario Ejecutivo..."
+              placeholder="UUID del Usuario Ejecutivo..."
               value={selectedExecutiveId}
               onChange={(e) => {
                 setSelectedExecutiveId(e.target.value);
                 loadExecutiveData(e.target.value);
               }}
-              className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs"
+              className="input-field"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '6px' }}>
               Seleccionar Empresa Cliente
             </label>
             <select
               value={selectedCompanyId}
               onChange={(e) => setSelectedCompanyId(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs"
+              className="input-field"
             >
               <option value="">-- Seleccionar Empresa --</option>
               {companies.map((c) => (
@@ -116,7 +115,7 @@ export const ExecutiveAssignmentView: React.FC = () => {
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-slate-300 mb-1">
+          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '6px' }}>
             Motivo / Razón de Asignación (Auditoría)
           </label>
           <input
@@ -124,46 +123,40 @@ export const ExecutiveAssignmentView: React.FC = () => {
             placeholder="Ej: Asignación por reestructuración de zona geográfica norte"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs"
+            className="input-field"
           />
         </div>
 
-        <div className="flex justify-end gap-3 pt-2">
-          <button
-            onClick={() => handleAssign('ASSIGN')}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs"
-          >
+        <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '8px' }}>
+          <button onClick={() => handleAssign('ASSIGN')} className="btn btn-primary">
             <span>Asignar a Cartola</span>
-            <ArrowRight className="w-4 h-4" />
+            <ArrowRight size={16} />
           </button>
         </div>
       </div>
 
-      {/* Active Portfolio Grid */}
+      {/* Active Portfolio & Audit Grid */}
       {selectedExecutiveId && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Portfolio Table */}
-          <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl">
-            <h2 className="text-sm font-bold text-slate-200 mb-3 flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-emerald-400" />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+          {/* Portfolio Panel */}
+          <div className="glass-panel" style={{ padding: '20px' }}>
+            <h2 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Building2 size={18} color="var(--primary)" />
               <span>Cartola Activa del Ejecutivo</span>
             </h2>
-            <div className="space-y-2 max-h-60 overflow-y-auto pr-1 text-xs">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '240px', overflowY: 'auto' }}>
               {loading ? (
-                <p className="text-slate-500 italic py-4">Cargando cartola...</p>
+                <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', padding: '16px 0', fontSize: '0.8rem' }}>Cargando cartola...</p>
               ) : portfolio.length === 0 ? (
-                <p className="text-slate-500 italic py-4">No tiene empresas en cartola.</p>
+                <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', padding: '16px 0', fontSize: '0.8rem' }}>No tiene empresas en cartola.</p>
               ) : (
                 portfolio.map((c) => (
-                  <div key={c.id} className="flex justify-between items-center p-3 rounded-xl bg-slate-800/40 border border-slate-800">
+                  <div key={c.id} className="glass-panel" style={{ padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem' }}>
                     <div>
-                      <p className="font-semibold text-slate-200">{c.name}</p>
-                      <p className="text-[10px] text-slate-400 font-mono">RUT: {c.tax_id}</p>
+                      <p style={{ fontWeight: 600, color: 'var(--text-main)' }}>{c.name}</p>
+                      <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>RUT: {c.tax_id}</p>
                     </div>
-                    <button
-                      onClick={() => handleAssign('UNASSIGN', c.id)}
-                      className="px-2.5 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 font-bold text-[10px]"
-                    >
+                    <button onClick={() => handleAssign('UNASSIGN', c.id)} className="btn btn-danger" style={{ padding: '4px 10px', fontSize: '0.75rem' }}>
                       Desvincular
                     </button>
                   </div>
@@ -172,28 +165,28 @@ export const ExecutiveAssignmentView: React.FC = () => {
             </div>
           </div>
 
-          {/* Audit Trail */}
-          <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl">
-            <h2 className="text-sm font-bold text-slate-200 mb-3 flex items-center gap-2">
-              <History className="w-4 h-4 text-amber-400" />
+          {/* Audit History Panel */}
+          <div className="glass-panel" style={{ padding: '20px' }}>
+            <h2 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <History size={18} color="var(--warning)" />
               <span>Historial de Auditoría (Trazabilidad)</span>
             </h2>
-            <div className="space-y-2 max-h-60 overflow-y-auto pr-1 text-xs">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '240px', overflowY: 'auto' }}>
               {auditHistory.length === 0 ? (
-                <p className="text-slate-500 italic py-4">Sin registro previo.</p>
+                <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', padding: '16px 0', fontSize: '0.8rem' }}>Sin registro previo.</p>
               ) : (
                 auditHistory.map((h) => (
-                  <div key={h.id} className="p-2.5 rounded-lg bg-slate-800/40 border border-slate-800 space-y-1">
-                    <div className="flex justify-between items-center">
-                      <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${h.action === 'ASSIGNED' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
+                  <div key={h.id} className="glass-panel" style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.8rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span className={h.action === 'ASSIGNED' ? 'badge badge-success' : 'badge badge-danger'}>
                         {h.action}
                       </span>
-                      <span className="text-[10px] text-slate-500 font-mono">
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
                         {new Date(h.created_at).toLocaleString()}
                       </span>
                     </div>
-                    <p className="text-slate-300 font-mono text-[10px]">Empresa ID: {h.company_id}</p>
-                    {h.reason && <p className="text-slate-400 italic text-[10px]">{h.reason}</p>}
+                    <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-main)' }}>Empresa ID: {h.company_id}</p>
+                    {h.reason && <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.75rem' }}>{h.reason}</p>}
                   </div>
                 ))
               )}

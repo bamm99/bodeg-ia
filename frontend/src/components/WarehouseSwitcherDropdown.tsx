@@ -11,12 +11,10 @@ export const WarehouseSwitcherDropdown: React.FC = () => {
 
   const roleCode = user?.role?.code || '';
 
-  // Solo mostrar el selector para roles operativos o supervisores (WAREHOUSE_MANAGER, WAREHOUSE_OPERATOR, COMPANY_ADMIN)
   if (!['WAREHOUSE_MANAGER', 'WAREHOUSE_OPERATOR', 'COMPANY_ADMIN'].includes(roleCode)) {
     return null;
   }
 
-  // Cerrar al hacer clic fuera del dropdown
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -37,68 +35,104 @@ export const WarehouseSwitcherDropdown: React.FC = () => {
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-slate-200 text-xs font-medium transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+        className="btn btn-secondary text-xs"
+        style={{ padding: '6px 14px', borderRadius: '10px' }}
       >
-        <Warehouse className="w-4 h-4 text-emerald-400" />
-        <span className="max-w-[180px] truncate">
+        <Warehouse size={16} color="var(--primary)" />
+        <span style={{ maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {selectedWarehouseId === 'ALL'
             ? 'Todas mis Bodegas (Consolidado)'
             : selectedWarehouse
             ? selectedWarehouse.name
             : 'Seleccionar Bodega'}
         </span>
-        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown
+          size={14}
+          style={{
+            color: 'var(--text-muted)',
+            transition: 'transform 0.2s',
+            transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+          }}
+        />
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-64 rounded-xl bg-slate-900/95 backdrop-blur-md border border-slate-800 shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-          <div className="p-2 border-b border-slate-800/80">
-            <p className="text-[10px] font-semibold tracking-wider text-slate-400 uppercase px-2 py-1">
+        <div
+          className="glass-panel"
+          style={{
+            position: 'absolute',
+            right: 0,
+            marginTop: '8px',
+            width: '260px',
+            zIndex: 100,
+            overflow: 'hidden',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.6)',
+            padding: '4px',
+          }}
+        >
+          <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border-color)' }}>
+            <p style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               Mis Bodegas Asignadas
             </p>
           </div>
 
-          <div className="py-1 max-h-60 overflow-y-auto">
-            {/* Opción Consolidado */}
-            <button
+          <div style={{ maxHeight: '220px', overflowY: 'auto', padding: '4px 0' }}>
+            {/* Option Consolidado */}
+            <div
               onClick={() => handleSelect('ALL')}
-              className={`w-full flex items-center justify-between px-3 py-2 text-xs transition-colors ${
-                selectedWarehouseId === 'ALL'
-                  ? 'bg-emerald-500/10 text-emerald-400 font-semibold'
-                  : 'text-slate-300 hover:bg-slate-800/60'
-              }`}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '8px 12px',
+                borderRadius: '8px',
+                fontSize: '0.8rem',
+                cursor: 'pointer',
+                background: selectedWarehouseId === 'ALL' ? 'var(--primary-glow)' : 'transparent',
+                color: selectedWarehouseId === 'ALL' ? 'var(--primary)' : 'var(--text-main)',
+                fontWeight: selectedWarehouseId === 'ALL' ? 700 : 500,
+                transition: 'background 0.15s',
+              }}
             >
-              <div className="flex items-center gap-2">
-                <Layers className="w-3.5 h-3.5 text-emerald-400" />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Layers size={14} color="var(--primary)" />
                 <span>Todas mis Bodegas (Consolidado)</span>
               </div>
-              {selectedWarehouseId === 'ALL' && <Check className="w-3.5 h-3.5 text-emerald-400" />}
-            </button>
+              {selectedWarehouseId === 'ALL' && <Check size={14} color="var(--primary)" />}
+            </div>
 
-            {/* Listado de Bodegas */}
+            {/* List of Warehouses */}
             {assignedWarehouses.map((wh) => {
               const isSelected = selectedWarehouseId === wh.id;
               return (
-                <button
+                <div
                   key={wh.id}
                   onClick={() => handleSelect(wh.id)}
-                  className={`w-full flex items-center justify-between px-3 py-2 text-xs transition-colors ${
-                    isSelected
-                      ? 'bg-emerald-500/10 text-emerald-400 font-semibold'
-                      : 'text-slate-300 hover:bg-slate-800/60'
-                  }`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    background: isSelected ? 'var(--primary-glow)' : 'transparent',
+                    color: isSelected ? 'var(--primary)' : 'var(--text-main)',
+                    fontWeight: isSelected ? 700 : 500,
+                    transition: 'background 0.15s',
+                  }}
                 >
-                  <div className="flex flex-col items-start truncate pr-2">
-                    <span className="truncate">{wh.name}</span>
-                    <span className="text-[10px] text-slate-500 font-normal">Cód: {wh.code}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{wh.name}</span>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Cód: {wh.code}</span>
                   </div>
-                  {isSelected && <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
-                </button>
+                  {isSelected && <Check size={14} color="var(--primary)" />}
+                </div>
               );
             })}
 
             {assignedWarehouses.length === 0 && (
-              <div className="px-3 py-3 text-center text-slate-500 text-xs italic">
+              <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.75rem', fontStyle: 'italic' }}>
                 No tienes bodegas específicas asignadas.
               </div>
             )}
