@@ -28,7 +28,7 @@ La plataforma distingue tres categorías de usuarios: **Internos de Plataforma**
 
 ### 🏢 2. Usuarios Externos (Empresa Cliente / Operador Logístico)
 3. **Administrador de Empresa (`COMPANY_ADMIN`)**: Administrador principal de una empresa cliente. Controla la configuración de su empresa, sucursales, bodegas, tarifarios AST, usuarios internos, catálogo y clientes 3PL.
-4. **Jefe de Bodega (`WAREHOUSE_MANAGER`)**: Responsable operativo y de supervisión de sus bodegas asignadas (`user_warehouse_assignments`). Aprueba solicitudes de despacho 3PL, **supervisa ex-post** las reubicaciones de stock de los bodegueros, administra casilleros y consulta tarifarios locales. No gestiona facturación de la empresa ni usuarios fuera de sus bodegas.
+4. **Jefe de Bodega (`WAREHOUSE_MANAGER`)**: Responsable operativo y de supervisión de sus bodegas asignadas (`user_warehouse_assignments`). Dispone de un **Selector de Bodega (Warehouse Switcher en Header)** para alternar entre sus instalaciones. Aprueba solicitudes de despacho 3PL, **supervisa ex-post** las reubicaciones de stock, administra casilleros locales y consulta tarifarios locales. No gestiona facturación global de la empresa ni usuarios fuera de sus bodegas.
 5. **Bodeguero / Operador (`WAREHOUSE_OPERATOR`)**: Usuario operativo en terreno. Accede al mapa 2D, ejecuta recepción (Inbound), reubicación directa (Relocate) y despachos aprobados (Outbound). **Strictly No-Financial**: No accede a costos ni tarifas.
 6. **Gestión / Comercial (`COMMERCIAL_MANAGEMENT`)**: Usuario comercial y financiero. Administra tarifarios de costo de almacenamiento, volumen $m^3$, liquidaciones de cobro a clientes 3PL, simuladores de cotización en memoria y onboarding de clientes 3PL. No realiza movimientos físicos de stock.
 
@@ -37,71 +37,77 @@ La plataforma distingue tres categorías de usuarios: **Internos de Plataforma**
 
 ---
 
-## 📦 Flujo de Solicitudes de Despacho 3PL & Notificaciones Push
+## 🛡️ Aislamiento Multi-Tenant Duro en Telegram IA & Seguridad AST
 
 ```
-┌─────────────────────────┐      1. Solicita Despacho      ┌──────────────────────────┐
-│  CLIENT_VIEWER (3PL)    ├───────────────────────────────►│    dispatch_requests     │
-└─────────────────────────┘                                │    (Status: PENDING)     │
-                                                           └────────────┬─────────────┘
-                                                                        │
-                                                               2. Alerta Push Telegram + Badge
-                                                                        │
-                                                                        ▼
-┌─────────────────────────┐      3. Revisa y Aprueba       ┌──────────────────────────┐
-│ WAREHOUSE_MANAGER /     ├───────────────────────────────►│    dispatch_requests     │
-│ COMPANY_ADMIN           │                                │    (Status: APPROVED)    │
-└─────────────────────────┘                                └────────────┬─────────────┘
-                                                                        │
-                                                               4. Orden de Despacho
-                                                                        │
-                                                                        ▼
-┌─────────────────────────┐      5. Ejecuta Salida Física  ┌──────────────────────────┐
-│ WAREHOUSE_OPERATOR      ├───────────────────────────────►│   inventory_movements    │
-│ (Bodeguero en Terreno)  │                                │   (OUTBOUND / FULFILLED) │
-└─────────────────────────┘                                └──────────────────────────┘
+┌───────────────────────────┐
+│ Mensaje Telegram Usuario  │ "¿En qué pasillo está la Harina 25kg?"
+└─────────────┬─────────────┘
+              │
+              ▼
+┌───────────────────────────┐  1. Obtiene Telegram Chat ID
+│ Telegram Auth Middleware  ├─► 2. Identifica User & tenant_id / warehouse_ids
+└─────────────┬─────────────┘
+              │
+              ▼
+┌───────────────────────────┐  3. Ejecuta Query SQL en PostgreSQL con FILTRO DURO:
+│ Database SQL Pre-Filter   ├─► `WHERE company_id = 'c1' AND storage_location_id IN (...)`
+└─────────────┬─────────────┘
+              │
+              ▼ (Dataset Seguro Filtrado en JSON)
+┌───────────────────────────┐
+│   Contexto para LLM IA    ├─► 4. El LLM procesa solo los datos del tenant autenticado.
+└─────────────┬─────────────┘    IMPOSIBLE fuga cross-tenant por Prompt Injection.
+              │
+              ▼
+┌───────────────────────────┐
+│ Respuesta en Terreno      │ "La Harina 25kg está en Pasillo 01, Repisa A1, Nivel 2."
+└─────────────────────────--┘
 ```
 
-### 1. Modelo de Datos `dispatch_requests`
-Para separar la solicitud pendiente del hecho físico ya ejecutado (`inventory_movements`), se implementa la tabla `dispatch_requests`:
-* **Campos:** `id`, `company_id`, `client_owner_id`, `product_id`, `requested_quantity`, `status` (`PENDING`, `APPROVED`, `FULFILLED`, `REJECTED`), `requested_at`, `approved_by_user_id`, `fulfilled_movement_id`, `rejection_reason`, `notes`.
+### 1. Aislamiento Multi-Tenant Duro en Telegram IA (Pre-SQL Filter)
+Para prevenir ataques de Prompt Injection o Jailbreak donde un usuario intente hacer que el modelo de IA "olvide" sus instrucciones y devuelva datos de otra empresa cliente:
+* **Filtro Duro Pre-SQL:** El Bot de Telegram **NUNCA entrega la base de datos abierta al LLM ni permite que el modelo ejecute SQL arbitrario**.
+* Al recibir una pregunta en lenguaje natural, el backend obtiene el `user_id`, `company_id` y `warehouse_ids` asignados al usuario de Telegram.
+* El sistema ejecuta primero una consulta SQL estricta con clausula obligatoria `WHERE company_id = '<user_company_id>'`.
+* El conjunto de datos JSON resultante y filtrado a nivel de base de datos se entrega como contexto seguro al LLM para redactar la respuesta. Esto garantiza matemáticamente un **aislamiento multi-tenant infranqueable**.
 
-### 2. Motor de Notificaciones Automáticas por Telegram
-Cuando un Cliente 3PL emite una nueva solicitud de despacho (`PENDING`):
-* **Notificación Push de Telegram:** El bot de Bodeg-IA envía instantáneamente una alerta al Jefe de Bodega y Admin Empresa asignados: *"📩 Nueva Solicitud de Despacho #1042 — Cliente: Frutas del Cachapoal | SKU: HAR-IND-25 (50 cajas). Ingresa al portal para aprobar"*.
-* **Badge de Notificación en Sidebar:** Muestra un contador rojo `[3]` en la opción `Solicitudes de Despacho Pendientes` del menú lateral.
+### 2. Whitelist Estricta de Variables en Fórmulas AST
+En el módulo de Tarifario y Motor de Costos AST, el parser de mathjs valida las expresiones dinámicas contra una **Lista Blanca (Whitelist) estricta de Identificadores Permitidos**:
+* **Variables Permitidas:** `base`, `turnover`, `maintenance`, `energy`, `seasonal`, `occupied_m3`, `total_m3`.
+* Si un usuario intenta ingresar variables de sistema no autorizadas o símbolos extraños (ej. `process`, `eval`, `internal_cost`), el validador rechaza la fórmula con el error `INVALID_FORMULA_VARIABLE`.
 
 ---
 
-## ⚡ Reglas de Negocio, Supervisión vs Aprobación & Seguridad
+## ⚡ Reglas de Negocio, Alertas Proactivas 90% & Almacenamiento
 
-### 🏭 1. Aclaración de Flujos: Supervisión Ex-Post vs Aprobación Previa
-* **Reubicaciones entre Casilleros (Relocate):** **Acción Directa + Supervisión Ex-Post**. Para mantener la agilidad en terreno, el Bodeguero mueve pallets libremente en tiempo real. El Jefe de Bodega **supervisa y audita ex-post** los movimientos desde su dashboard sin bloquear la operación diaria.
-* **Despachos de Mercancía (Outbound):** **Aprobación Previa Obligatoria**. Todo despacho hacia el cliente final o transporte requiere que una solicitud (`dispatch_requests`) haya sido previamente aprobada (`APPROVED`) por el Jefe de Bodega o Admin Empresa antes de que el Bodeguero ejecute la salida física.
+### ⚠️ 1. Alerta Proactiva Preventiva al 90% de Límites SaaS
+Para evitar que una empresa cliente quede bloqueada operativamente sin previo aviso al llegar un camión urgente:
+* **Umbral de Alerta del 90%:** Cuando una empresa alcanza el 90% de consumo de cualquier límite contratado (`max_warehouses`, `max_users`, `max_storage_m3`), el sistema dispara alertas proactivas:
+  - **Notificación por Telegram:** Mensaje automático al `COMPANY_ADMIN`: *"⚠️ Advertencia de Capacidad — Tu empresa ha alcanzado el 90% del almacenamiento contratado (1.800 / 2.000 m³). Te sugerimos gestionar un upgrade de plan para evitar interrupciones operativas"*.
+  - **Correo Electrónico Transaccional:** Correo enviado al Administrador y al Ejecutivo de Plataforma asignado.
+  - **Banner de Advertencia en Dashboard:** Banner amarillo interactivo en el frontend con el botón **"Solicitar Upgrade de Plan"**.
+* **Bloqueo Duro al 100%:** Si alcanza el 100%, las peticiones `INSERT` retornan `HTTP 402 Payment Required` desplegando la modal de Upsell comercial.
 
-### ✉️ 2. Onboarding del Cliente 3PL ("Invitar a Portal")
-En los módulos de *Clientes 3PL* del Admin Empresa y Gestión Comercial, cada ficha de cliente 3PL incluye el botón **"✉️ Invitar a Portal 3PL"**:
-* Genera un enlace de invitación seguro por correo electrónico para que el representante del cliente configure su cuenta con rol `CLIENT_VIEWER`.
+### 🎛️ 2. Selector de Bodega en Header (`Warehouse Switcher`)
+Para dar soporte a usuarios con múltiples asignaciones (`user_warehouse_assignments`):
+* En el encabezado superior (Topbar) del **Jefe de Bodega** y **Bodeguero**, se incluye el dropdown **`Warehouse Switcher`** que permite alternar entre sus bodegas asignadas o seleccionar *"Todas mis Bodegas Asignadas (Consolidado)"*.
+* La opción del Sidebar se renombra a **"Mis Bodegas Asignadas"** (en plural) para reflejar correctamente la vista multi-bodega.
 
-### 🏢 3. Un mismo Cliente 3PL con Múltiples Operadores Logísticos (Limitación Conocida MVP)
-* **Limitación del Modelo MVP:** El modelo de datos ata la ficha `clients` a una única `company_id` de un operador logístico. Si una empresa dueña de mercancía guarda stock con dos operadores distintos usarios de Bodeg-IA, operará con dos cuentas `CLIENT_VIEWER` independientes (delimitación aceptada para el MVP).
+### 📦 3. Solicitudes de Despacho 3PL (`dispatch_requests`) & Notificaciones Telegram Push
+* **Modelo de Datos:** Separación de solicitudes pendientes (`dispatch_requests` con estados `PENDING`, `APPROVED`, `FULFILLED`, `REJECTED`) de los movimientos físicos ejecutados en Kardex (`inventory_movements`).
+* **Telegram Push Alert:** Notificación instantánea al Jefe de Bodega al recibir una nueva solicitud 3PL.
 
-### ⏳ 4. Política de Fin de Contrato con Cliente 3PL (Acceso Histórico 90 Días)
-* Cuando la relación comercial con un cliente 3PL finaliza, la cuenta no se elimina de inmediato.
-* **Estado `READ_ONLY_HISTORICAL_90_DAYS`:** Durante **90 días**, el acceso del cliente pasa a modo solo lectura histórica para que pueda revisar facturas pasadas, descargar reportes Kardex y resolver eventuales disputas de cobro antes de la desactivación total.
+### 🏭 4. Aclaración de Flujos: Supervisión Ex-Post vs Aprobación Previa
+* **Reubicaciones entre Casilleros (Relocate):** **Acción Directa + Supervisión Ex-Post**. Los bodegueros mueven pallets libremente en tiempo real. El Jefe de Bodega **supervisa y audita ex-post** los movimientos desde su dashboard.
+* **Despachos de Mercancía (Outbound):** **Aprobación Previa Obligatoria**. Requiere que una solicitud (`dispatch_requests`) esté previamente autorizada (`APPROVED`) por el Jefe de Bodega antes del despacho físico.
 
-### 🔒 5. Seguridad Reforzada para el Portal `CLIENT_VIEWER`
-Debido a que los usuarios `CLIENT_VIEWER` son actores externos a la organización:
-* **Expiración de Sesión Corta:** Tokens JWT con validez máxima de **4 horas** (vs 24 horas de usuarios internos).
-* **Cierre Automático por Inactividad:** Cierre de sesión automático tras **15 minutos de inactividad**.
-* **Auditoría de Acceso a Facturación:** Auditoría de IP y trazabilidad en peticiones a liquidaciones.
-
-### 🛡️ 6. Auditoría de Datos Sensibles de Tenants & Límites SaaS
-* **Registro Inmutable `tenant_access_audit_logs`:** Registra cada consulta de usuarios internos (`SUPER_ADMIN` / `PLATFORM_ADMIN`) a tarifarios y datos financieros de clientes.
-* **Enforcement de Límites SaaS:** Intercepta peticiones con `HTTP 402` (`PLAN_LIMIT_EXCEEDED`) si se superan las bodegas, usuarios o m³ del plan contratado, desplegando la modal de Upsell en Frontend.
-* **Bloqueo de Downgrade:** Se exige reducir los recursos activos antes de procesar un downgrade a un plan con menores capacidades.
-* **PIN Telegram Seguro:** Códigos de 6 dígitos con expiración estricta de **10 minutos** y máximo **3 intentos fallidos**.
-* **Simulador de Cotizaciones:** Herramienta **puramente en memoria (Read-Only)** que no altera la base de datos.
+### ✉️ 5. Onboarding, Fin de Contrato 90 Días & Seguridad Portal 3PL
+* **Botón "✉️ Invitar a Portal 3PL":** Permite al Admin Empresa enviar una invitación por correo para crear accesos `CLIENT_VIEWER`.
+* **Estado `READ_ONLY_HISTORICAL_90_DAYS`:** 90 días de acceso solo lectura a respaldos tras finalizar el contrato comercial.
+* **Seguridad `CLIENT_VIEWER`:** Token JWT corto de **4 horas** y cierre por inactividad a los **15 minutos**.
+* **Auditoría `tenant_access_audit_logs`:** Registro inmutable de consultas a tarifarios por usuarios internos.
+* **Downgrade Bloqueado con Exceso:** Prohibición de downgrade hasta reducir recursos activos.
 
 ---
 
@@ -136,7 +142,7 @@ Debido a que los usuarios `CLIENT_VIEWER` son actores externos a la organizació
 
 -> Motor AST & Parámetros Globales
 --> Configuración del Motor de Costos
----> Descripción: Ajustes del parser matemático de evaluación de fórmulas AST (mathjs sandbox). Define variables globales del sistema, multiplicadores por defecto de tasa de rotación (HIGH, MEDIUM, LOW) y límites de seguridad para el cálculo de tarifas por repisa/día.
+---> Descripción: Ajustes del parser matemático de evaluación de fórmulas AST (mathjs sandbox). Define variables globales del sistema, la **Whitelist de variables permitidas** (`base`, `turnover`, `maintenance`, `energy`, `seasonal`, `occupied_m3`, `total_m3`), multiplicadores de rotación y límites de seguridad.
 
 -> Gestión de Usuarios Internos
 --> Listado de Personal Interno
@@ -146,7 +152,7 @@ Debido a que los usuarios `CLIENT_VIEWER` son actores externos a la organizació
 
 -> Bot de Telegram & Asistente IA
 --> Estado & Configuración del Bot
----> Descripción: Panel de control de la integración con el Bot de Telegram de IA. Muestra el estado del webhook de Telegram, tokens de API, logs de mensajes procesados, intenciones consultadas por usuarios en terreno y tasa de éxito en la identificación de productos.
+---> Descripción: Panel de control de la integración con el Bot de Telegram de IA. Muestra el estado del webhook de Telegram, tokens de API, logs de mensajes procesados, intenciones consultadas por usuarios en terreno, trazabilidad de **filtros pre-SQL multi-tenant** y tasa de éxito.
 --> Registro de Dispositivos & Usuarios Telegram
 ---> Descripción: Muestra las cuentas de Telegram y teléfonos vinculados a usuarios del sistema mediante código PIN temporal de 10 minutos para consultas directas desde terreno.
 
@@ -172,8 +178,8 @@ Debido a que los usuarios `CLIENT_VIEWER` son actores externos a la organizació
 -> Mis Clientes (Cartola Asignada)
 --> Listado de Mi Cartera
 ---> Descripción: Muestra el listado de las empresas clientes asignadas bajo la tutela de este ejecutivo. Al seleccionar una empresa, el ejecutivo puede navegar a la ficha completa de ese cliente para ver sus sucursales, bodegas y usuarios administradores. Cada ingreso a datos financieros genera un registro en `tenant_access_audit_logs`.
---> Detección de Oportunidades de Upselling
----> Descripción: Reporte inteligente que identifica empresas de su cartera que están alcanzando el 85%+ del límite de bodegas, usuarios o almacenamiento m³ de su plan actual, permitiendo al ejecutivo proponer una actualización al Plan PRO o ENTERPRISE.
+--> Detección de Oportunidades de Upselling [Alertas 90%]
+---> Descripción: Reporte inteligente que identifica empresas de su cartera que han alcanzado el **90%+ del límite** de bodegas, usuarios o almacenamiento m³ de su plan actual, permitiendo al ejecutivo proponer de forma preventiva una actualización al Plan PRO o ENTERPRISE antes de que queden bloqueados operativamente.
 
 -> Supervisión de Bodegas & Capacidad
 --> Bodegas de Mi Cartera
@@ -189,7 +195,7 @@ Debido a que los usuarios `CLIENT_VIEWER` son actores externos a la organizació
 
 -> Bot de Telegram & Consultas
 --> Monitoreo de Consultas de Mi Cartera
----> Descripción: Muestra las consultas en lenguaje natural realizadas a través del Bot de Telegram por los usuarios de las empresas pertenecientes a su cartola de clientes.
+---> Descripción: Muestra las consultas en lenguaje natural realizadas a través del Bot de Telegram por los usuarios de las empresas pertenecientes a su cartola de clientes (con auditoría de filtros pre-SQL multi-tenant).
 
 -> Mi Perfil
 --> Configuración de Cuenta
@@ -200,13 +206,13 @@ Debido a que los usuarios `CLIENT_VIEWER` son actores externos a la organizació
 ### 🏢 3. SIDEBAR: ADMINISTRADOR DE EMPRESA (Externo - Empresa Cliente)
 
 -> Home / Dashboard Empresa
---> Descripción: Vista de mando de la empresa cliente. Muestra indicadores de rendimiento clave (KPIs): uso actual de límites del plan (ej. 2/3 Bodegas, 8/15 Usuarios, 450/2000 m³ ocupados), sucursales activas, bodegas propias, solicitudes de despacho pendientes, porcentaje de ocupación promedio, total de productos en catálogo, stock total e historial de movimientos del día.
+--> Descripción: Vista de mando de la empresa cliente. Muestra indicadores de rendimiento clave (KPIs): uso actual de límites del plan con **Barra de Progreso y Alertas al 90%** (ej. 2/3 Bodegas, 8/15 Usuarios, 1.800/2.000 m³ ocupados), sucursales activas, bodegas propias, solicitudes de despacho pendientes, porcentaje de ocupación promedio, total de productos en catálogo, stock total e historial de movimientos del día.
 
 -> Estructura Física & Bodegas
 --> Sucursales
 ---> Descripción: Gestión de las sucursales de la empresa (ej. Sucursal Pudahuel, Sucursal San Bernardo). Permite crear y editar sucursales especificando nombre, dirección física y teléfono de contacto.
 --> Bodegas
----> Descripción: Listado de bodegas asociadas a cada sucursal. Permite crear nuevas bodegas (con validación previa contra el límite `max_warehouses` del plan contratado), habilitar o deshabilitar el seguimiento de costos por espacio (`is_cost_tracking_enabled`) y definir parámetros operativos.
+---> Descripción: Listado de bodegas asociadas a cada sucursal. Permite crear nuevas bodegas (con validación previa contra el límite `max_warehouses` del plan contratado y despliegue de modal de Upsell en caso de exceder), habilitar o deshabilitar el seguimiento de costos por espacio (`is_cost_tracking_enabled`) y definir parámetros operativos.
 --> Diseñador Espacial & Jerarquía (Zonas, Pasillos, Repisas)
 ---> Descripción: Herramienta de gestión para estructurar la jerarquía física de cada bodega. Permite crear Zonas (definiendo tasa de rotación HIGH, MEDIUM, LOW), Pasillos, Repisas (Racks 2D) especificando su posición en grilla `position_x`, `position_y`, Niveles y Casilleros de almacenamiento (`storage_locations`) fijando capacidad máxima en m³ y peso en kg.
 --> Plano 2D Interactivo de Bodegas
@@ -222,7 +228,7 @@ Debido a que los usuarios `CLIENT_VIEWER` son actores externos a la organizació
 --> Perfiles de Costo (Zonas / Repisas / Niveles)
 ---> Descripción: Configuración del cobro por espacio de almacenamiento en la bodega. Permite definir el costo base diario por m³, multiplicador de rotación, costos fijos de mantenimiento/energía diarios y asociarlo mediante la regla de Arco Exclusivo (exactamente a una Zona, Repisa o Nivel).
 --> Editor de Fórmulas Dinámicas AST
----> Descripción: Herramienta avanzada para crear fórmulas de cobro personalizadas escritas en lenguaje sintáctico AST (ej. `(base * turnover + energy) * seasonal`). Permite probar la fórmula antes de guardarla.
+---> Descripción: Herramienta avanzada para crear fórmulas de cobro personalizadas escritas en lenguaje sintáctico AST (ej. `(base * turnover + energy) * seasonal`). Incluye la **validación estricta de Whitelist de variables permitidas** (`base`, `turnover`, `maintenance`, `energy`, `seasonal`, `occupied_m3`, `total_m3`).
 --> Simulador de Cobros de Almacenaje (Puro en Memoria)
 ---> Descripción: Calculadora interactiva pura en memoria que permite ingresar volumen ocupado en m³, cantidad de días y zona elegida para calcular al instante el costo total estimado a cobrar por el bodegaje.
 --> Historial de Cambios Tarifarios
@@ -251,8 +257,8 @@ Debido a que los usuarios `CLIENT_VIEWER` son actores externos a la organizació
 ---> Descripción: Administración de las cuentas de usuario de la empresa (Jefes de Bodega, Bodegueros, Ejecutivos Comerciales). Valida previamente contra el límite `max_users` del plan. Permite asignar roles, activar/desactivar cuentas y restablecer claves.
 --> Asignación de Bodegas por Usuario
 ---> Descripción: Mapeo de permisos por bodega (`user_warehouse_assignments`). Permite restringir a un Jefe de Bodega o Bodeguero para que solo pueda ver u operar en las bodegas explícitamente asignadas.
---> Mi Plan SaaS & Estado de Suscripción
----> Descripción: Muestra el plan SaaS actual contratado (BASIC, PRO, ENTERPRISE), el porcentaje consumido de los límites (bodegas, usuarios, m³) y permite solicitar un Upgrade de plan directamente a su Ejecutivo de Plataforma.
+--> Mi Plan SaaS & Estado de Suscripción [Alerta 90%]
+---> Descripción: Muestra el plan SaaS actual contratado (BASIC, PRO, ENTERPRISE), el porcentaje consumido de los límites con alertas al 90% y permite solicitar un Upgrade de plan directamente a su Ejecutivo de Plataforma.
 
 -> Bot de Telegram IA
 --> Vinculación de Cuentas Telegram (Código PIN)
@@ -264,32 +270,32 @@ Debido a que los usuarios `CLIENT_VIEWER` son actores externos a la organizació
 
 ### 🏭 4. SIDEBAR: JEFE DE BODEGA (`WAREHOUSE_MANAGER` - Supervisión Operativa de Bodega)
 
--> Home / Mi Bodega Asignada
---> Descripción: Panel de control de la bodega asignada al Jefe de Bodega (`user_warehouse_assignments`). Muestra ocupación en m³ de la bodega, casilleros disponibles, **solicitudes de despacho pendientes de aprobación**, alertas de sobrecapacidad, movimientos del día y productos próximos a vencer.
+-> Home / Dashboard de Mis Bodegas Asignadas
+--> Descripción: Panel de control de las bodegas asignadas al Jefe de Bodega (`user_warehouse_assignments`). Incluye el **Selector de Bodega (Warehouse Switcher en Header)** para alternar la vista entre bodegas específicas o consolidadas. Muestra ocupación en m³, casilleros disponibles, **solicitudes de despacho pendientes de aprobación**, alertas de sobrecapacidad, movimientos del día y productos próximos a vencer.
 
--> Estructura & Ocupación de Mi Bodega
---> Plano 2D de Mi Bodega
----> Descripción: Mapa gráfico 2D interactivo de la bodega bajo su mando. Permite inspeccionar repisas, casilleros y ver el nivel de ocupación en m³ en tiempo real.
+-> Estructura & Ocupación de Mis Bodegas
+--> Plano 2D de Mis Bodegas
+---> Descripción: Mapa gráfico 2D interactivo de la bodega seleccionada en el Header. Permite inspeccionar repisas, casilleros y ver el nivel de ocupación en m³ en tiempo real.
 --> Gestión de Casilleros & Posiciones
----> Descripción: Administración local de los casilleros de la bodega asignada. Permite marcar casilleros en mantenimiento o ajustar peso máximo permitido en kg.
+---> Descripción: Administración local de los casilleros de la bodega activa. Permite marcar casilleros en mantenimiento o ajustar peso máximo permitido en kg.
 
 -> Solicitudes de Despacho 3PL (Aprobación & Notificaciones)
 --> Aprobación de Despachos Pendientes [Badge Counter]
----> Descripción: Módulo de revisión de solicitudes de despacho emitidas por clientes 3PL para su bodega. Permite validar stock y Aprobar (`APPROVED`) o Rechazar (`REJECTED`), disparando la notificación instantánea por Telegram al cliente.
+---> Descripción: Módulo de revisión de solicitudes de despacho emitidas por clientes 3PL para sus bodegas. Permite validar stock y Aprobar (`APPROVED`) o Rechazar (`REJECTED`), disparando la notificación instantánea por Telegram al cliente.
 
--> Tarifas & Costos de Mi Bodega (Solo Lectura)
---> Consulta de Tarifario de Mi Bodega
----> Descripción: Muestra los perfiles de costo AST aplicados a las zonas y repisas de su bodega asignada. A diferencia del bodeguero, el Jefe de Bodega **SÍ puede consultar las tarifas** de su bodega para coordinar la optimización del espacio, pero **no puede modificar** la estructura tarifaria financiera de la empresa.
+-> Tarifas & Costos de Mis Bodegas (Solo Lectura)
+--> Consulta de Tarifario por Bodega
+---> Descripción: Muestra los perfiles de costo AST aplicados a las zonas y repisas de la bodega seleccionada. A diferencia del bodeguero, el Jefe de Bodega **SÍ puede consultar las tarifas** de su bodega para coordinar la optimización del espacio, pero **no puede modificar** la estructura tarifaria financiera de la empresa.
 
 -> Operaciones de Inventario & Supervisión
 --> Gestión de Ingresos (Inbound)
----> Descripción: Control y registro de recepciones de mercancía que ingresan a su bodega.
+---> Descripción: Control y registro de recepciones de mercancía que ingresan a sus bodegas.
 --> Supervisión y Auditoría de Reubicaciones (Relocate)
 ---> Descripción: Visor de supervisión y auditoría ex-post de los movimientos de mercancía entre casilleros realizados libremente por los bodegueros en terreno. Permite auditar qué bodeguero movió cada pallet sin generar cuellos de botella operativos.
 --> Ejecución de Despachos Aprobados (Outbound)
 ---> Descripción: Control de salidas de productos cuya solicitud ya ha sido autorizada previamente.
---> Kardex de Mi Bodega
----> Descripción: Historial filtrado de movimientos de inventario ocurridos exclusivamente en su bodega asignada.
+--> Kardex de Mis Bodegas
+---> Descripción: Historial filtrado de movimientos de inventario ocurridos exclusivamente en sus bodegas asignadas.
 
 -> Bot de Telegram & Terreno
 --> Vinculación Telegram Personal
@@ -300,11 +306,11 @@ Debido a que los usuarios `CLIENT_VIEWER` son actores externos a la organizació
 ### 📦 5. SIDEBAR: BODEGUERO / OPERADOR (`WAREHOUSE_OPERATOR` - Terreno & Operaciones Físicas)
 
 -> Home / Operación Diaria
---> Descripción: Vista simplificada para el trabajador de bodega en terreno. Muestra accesos directos rápidos a recepción de mercancía, consulta de ubicación de productos, reubicaciones y tareas asignadas. **Strictly No-Financial**: No muestra ningún valor monetario ni tarifas.
+--> Descripción: Vista simplificada para el trabajador de bodega en terreno. Incluye el **Selector de Bodega (Warehouse Switcher en Header)** si posee múltiples asignaciones. Muestra accesos directos rápidos a recepción de mercancía, consulta de ubicación de productos, reubicaciones y tareas asignadas. **Strictly No-Financial**: No muestra ningún valor monetario ni tarifas.
 
 -> Ubicación & Mapa 2D
---> Plano 2D de Mi Bodega (Vista Operativa)
----> Descripción: Visualización interactiva en 2D de la bodega asignada al operador. Permite navegar por repisas y ver visualmente qué casilleros están llenos o disponibles y qué productos están ubicados en cada posición.
+--> Plano 2D de Mis Bodegas (Vista Operativa)
+---> Descripción: Visualización interactiva en 2D de la bodega seleccionada en el Header. Permite navegar por repisas y ver visualmente qué casilleros están llenos o disponibles y qué productos están ubicados en cada posición.
 --> Búsqueda Rápida de Ubicación (SKU / Producto)
 ---> Descripción: Buscador de respuesta inmediata para terreno. El operador ingresa un código SKU o nombre de producto y la herramienta devuelve la ruta física jerárquica exacta para ir a buscarlo (*Ejemplo: Zona A > Pasillo 01 > Repisa REP-A1 > Nivel 2 > Casillero A1-N2-POS1*).
 
@@ -389,10 +395,11 @@ Debido a que los usuarios `CLIENT_VIEWER` son actores externos a la organizació
 | **Configuración SaaS & Planes** | 🟢 Total | ❌ Sin Acceso | ❌ Sin Acceso | ❌ Sin Acceso | ❌ Sin Acceso | ❌ Sin Acceso | ❌ Sin Acceso |
 | **Ver Todas las Empresas** | 🟢 Total | 🟡 Solo Cartola | ❌ Solo la Propia | ❌ Solo la Propia | ❌ Solo la Propia | ❌ Solo la Propia | ❌ Solo la Propia |
 | **Audit Log Acceso Datos Sensibles** | 🟢 Audit Logs | 🟢 Audit Logs | ❌ Sin Acceso | ❌ Sin Acceso | ❌ Sin Acceso | ❌ Sin Acceso | ❌ Sin Acceso |
-| **Validación Límites Plan SaaS** | 🟢 Configura | 👁️ Oportunidades | 🔴 Evaluado en INSERT | ❌ Sin Acceso | ❌ Sin Acceso | ❌ Sin Acceso | ❌ Sin Acceso |
+| **Validación Límites Plan (Alerta 90%)**| 🟢 Configura | 👁️ Oportunidades | 🟡 Alerta 90%/🔴402 | ❌ Sin Acceso | ❌ Sin Acceso | ❌ Sin Acceso | ❌ Sin Acceso |
+| **Selector de Bodega (Header Switcher)**| ❌ Global | ❌ Cartola | ❌ Todas Bodegas | 🟢 Multi-Bodega | 🟢 Multi-Bodega | ❌ Sin Acceso | ❌ Sin Acceso |
 | **Crear/Editar Bodegas & Jerarquía** | 🟢 Total | 👁️ Lectura | 🟢 Total | 🟡 Solo Casilleros | ❌ Sin Acceso | ❌ Sin Acceso | ❌ Sin Acceso |
 | **Plano 2D Interactivo de Bodega** | 🟢 Total | 🟢 Total | 🟢 Total | 🟢 Su Bodega | 🟢 Operativo | 👁️ Lectura | 👁️ Solo su Stock |
-| **Configurar Perfiles Costo AST** | 🟢 Total | 👁️ Lectura | 🟢 Total | 👁️ Solo Lectura | ❌ Sin Acceso | 👁️ Solo Lectura | ❌ Sin Acceso |
+| **Configurar Tarifas & Whitelist AST** | 🟢 Total | 👁️ Lectura | 🟢 Total | 👁️ Solo Lectura | ❌ Sin Acceso | 👁️ Solo Lectura | ❌ Sin Acceso |
 | **Simulador de Costos (Puro Memoria)**| 🟢 Total | 🟢 Total | 🟢 Total | ❌ Sin Acceso | ❌ Sin Acceso | 🟢 Total | ❌ Sin Acceso |
 | **Emitir Solicitud Despacho (`dispatch_requests`)** | ❌ N/A | ❌ N/A | ❌ N/A | ❌ N/A | ❌ N/A | ❌ N/A | 🟢 Emite Solicitud |
 | **Aprobar Solicitud Despacho** | 🟢 Total | ❌ Sin Acceso | 🟢 Total | 🟢 Su Bodega | ❌ Sin Acceso | ❌ Sin Acceso | ❌ Sin Acceso |
@@ -401,7 +408,7 @@ Debido a que los usuarios `CLIENT_VIEWER` son actores externos a la organizació
 | **Supervisión Ex-Post Reubicaciones** | 🟢 Total | 👁️ Lectura | 🟢 Total | 🟢 Audita Ex-Post | ❌ Sin Acceso | ❌ Sin Acceso | ❌ Sin Acceso |
 | **Kardex de Movimientos** | 🟢 Total | 👁️ Lectura | 🟢 Total | 👁️ Su Bodega | 👁️ Mis Movimientos | 👁️ Reporte Comercial| 👁️ Solo su Stock |
 | **Catálogo SKUs & Onboarding 3PL** | 🟢 Total | 👁️ Lectura | 🟢 Total | 👁️ Lectura | 👁️ Lectura | 🟢 Onboarding Email | 👁️ Sus Productos |
-| **Bot Telegram (Alertas Push & Queries)**| 🟢 Admin Bot | 👁️ Lectura | 🟢 Alertas Push | 🟢 Alertas Push | 🟢 PIN 10m (3 Intentos) | 👁️ Lectura | ❌ Sin Acceso |
+| **Bot Telegram (Aislamiento Pre-SQL)**| 🟢 Admin Bot | 👁️ Lectura | 🟢 Alertas Push | 🟢 Alertas Push | 🟢 Pre-SQL Filter | 👁️ Lectura | ❌ Sin Acceso |
 
 ---
 
