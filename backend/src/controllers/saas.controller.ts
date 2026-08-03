@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { prisma } from '../db/prisma.js';
 import { sendSuccess, sendError, sendPaginated } from '../utils/response.js';
 import { AuthRequest } from '../middleware/auth.js';
+import { getCompanyUsageStats } from '../services/planUsageService.js';
 
 // --- RESUMEN DASHBOARD SEGÚN ROL (SUPER_ADMIN, PLATFORM_ADMIN, COMPANY_ADMIN) ---
 export async function getDashboardOverview(req: AuthRequest, res: Response) {
@@ -116,14 +117,35 @@ export async function getDashboardOverview(req: AuthRequest, res: Response) {
   });
 }
 
-// --- PLANES ---
+// --- PLANES SAAS ---
 export async function getPlans(req: AuthRequest, res: Response) {
   const plans = await prisma.plans.findMany({ where: { is_active: true } });
   return sendSuccess(res, plans);
 }
 
 export async function createPlan(req: AuthRequest, res: Response) {
-  const plan = await prisma.plans.create({ data: req.body });
+  const { name, max_warehouses, max_users, max_storage_m3, price_monthly, currency } = req.body;
+
+  if (!name) {
+    return sendError(res, 'El nombre del plan es requerido', 400);
+  }
+
+  const existing = await prisma.plans.findUnique({ where: { name } });
+  if (existing) {
+    return sendError(res, `Ya existe un plan con el nombre "${name}"`, 409);
+  }
+
+  const plan = await prisma.plans.create({
+    data: {
+      name,
+      max_warehouses: max_warehouses ? Number(max_warehouses) : 1,
+      max_users: max_users ? Number(max_users) : 5,
+      max_storage_m3: max_storage_m3 ? Number(max_storage_m3) : 500.0,
+      price_monthly: price_monthly ? Number(price_monthly) : 0,
+      currency: currency || 'CLP',
+    },
+  });
+
   return sendSuccess(res, plan, 201, 'Plan SaaS creado exitosamente');
 }
 
@@ -134,6 +156,15 @@ export async function updatePlan(req: AuthRequest, res: Response) {
     data: req.body,
   });
   return sendSuccess(res, plan, 200, 'Plan SaaS actualizado');
+}
+
+export async function deletePlan(req: AuthRequest, res: Response) {
+  const { id } = req.params;
+  await prisma.plans.update({
+    where: { id },
+    data: { is_active: false },
+  });
+  return sendSuccess(res, null, 200, 'Plan SaaS desactivado (soft-delete)');
 }
 
 // --- EMPRESAS ---
@@ -176,7 +207,12 @@ export async function getCompanyById(req: AuthRequest, res: Response) {
     return sendError(res, 'Empresa no encontrada', 404);
   }
 
-  return sendSuccess(res, company);
+  const usageStats = await getCompanyUsageStats(id);
+
+  return sendSuccess(res, {
+    ...company,
+    usageStats,
+  });
 }
 
 export async function updateCompany(req: AuthRequest, res: Response) {
@@ -195,4 +231,102 @@ export async function deleteCompany(req: AuthRequest, res: Response) {
     data: { deleted_at: new Date(), is_active: false },
   });
   return sendSuccess(res, null, 200, 'Empresa eliminada (soft-delete)');
+}
+
+// --- ASIGNACIÓN DE CARTOLA DE EJECUTIVOS ---
+export async function assignExecutivePortfolio(req: AuthRequest, res: Response) {
+  const { executiveUserId, companyId, action, reason } = req.body;
+
+  if (!executiveUserId || !companyId || !action) {
+    return sendError(res, 'executiveUserId, companyId y action ("ASSIGN" | "UNASSIGN") son requeridos', 400);
+  }
+
+  const executive = await prisma.users.findUnique({
+    where: { id: executiveUserId },
+    include: { roles: true },
+  });
+
+  if (!executive) {
+    return sendError(res, 'Usuario Ejecutivo no encontrado', 404);
+  }
+
+  const adminUserId = req.user?.userId;
+  const adminUserExists = adminUserId ? await prisma.users.findUnique({ where: { id: adminUserId } }) : null;
+  const assignedByUserId = adminUserExists ? adminUserId : null;
+
+  if (action === 'ASSIGN') {
+    await prisma.user_company_access.upsert({
+      where: {
+        user_id_company_id: {
+          user_id: executiveUserId,
+          company_id: companyId,
+        },
+      },
+      create: {
+        user_id: executiveUserId,
+        company_id: companyId,
+      },
+      update: {},
+    });
+
+    await prisma.executive_portfolio_history.create({
+      data: {
+        executive_user_id: executiveUserId,
+        company_id: companyId,
+        action: 'ASSIGNED',
+        assigned_by_user_id: assignedByUserId,
+        reason: reason || 'Asignación de cartola por administrador',
+      },
+    });
+
+    return sendSuccess(res, null, 200, 'Empresa cliente asignada a la cartola del Ejecutivo');
+  } else if (action === 'UNASSIGN') {
+    await prisma.user_company_access.deleteMany({
+      where: {
+        user_id: executiveUserId,
+        company_id: companyId,
+      },
+    });
+
+    await prisma.executive_portfolio_history.create({
+      data: {
+        executive_user_id: executiveUserId,
+        company_id: companyId,
+        action: 'UNASSIGNED',
+        assigned_by_user_id: assignedByUserId,
+        reason: reason || 'Desvinculación de cartola por administrador',
+      },
+    });
+
+    return sendSuccess(res, null, 200, 'Empresa cliente desvinculada de la cartola del Ejecutivo');
+  }
+
+  return sendError(res, 'Acción inválida. Use "ASSIGN" o "UNASSIGN"', 400);
+}
+
+export async function getExecutivePortfolio(req: AuthRequest, res: Response) {
+  const { executiveUserId } = req.params;
+
+  const accessRecords = await prisma.user_company_access.findMany({
+    where: { user_id: executiveUserId },
+    include: {
+      companies: {
+        include: {
+          subscriptions: { include: { plans: true } },
+          warehouses: true,
+        },
+      },
+    },
+  });
+
+  const history = await prisma.executive_portfolio_history.findMany({
+    where: { executive_user_id: executiveUserId },
+    orderBy: { created_at: 'desc' },
+    take: 50,
+  });
+
+  return sendSuccess(res, {
+    portfolio: accessRecords.map((a) => a.companies),
+    auditHistory: history,
+  });
 }
