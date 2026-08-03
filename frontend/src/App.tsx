@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { WarehouseProvider } from './context/WarehouseContext';
 import { LandingPage } from './components/LandingPage';
 import { LoginPage } from './components/LoginPage';
 import { DashboardLayout } from './components/DashboardLayout';
@@ -34,7 +35,9 @@ function MainApp() {
 export function App() {
   return (
     <AuthProvider>
-      <MainApp />
+      <WarehouseProvider>
+        <MainApp />
+      </WarehouseProvider>
     </AuthProvider>
   );
 }

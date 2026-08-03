@@ -20,6 +20,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { InDevelopment } from './InDevelopment';
 import { API_BASE_URL } from '../config/api';
+import { WarehouseSwitcherDropdown } from './WarehouseSwitcherDropdown';
 
 interface DashboardLayoutProps {
   onLogout: () => void;
@@ -224,6 +225,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) =>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <WarehouseSwitcherDropdown />
             {renderBadgeByRole()}
             <div className="badge badge-success">
               <CheckCircle2 size={14} /> Backend API v1.0
