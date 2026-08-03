@@ -22,7 +22,7 @@ def run_seeder():
     # 1. Limpieza de tablas previas
     print("🧹 [1/6] Limpiando tablas previas en el servidor de pruebas...")
     clean_sql = """
-    TRUNCATE TABLE inventory_movements, inventory_items, products, clients,
+    TRUNCATE TABLE executive_portfolio_history, inventory_movements, inventory_items, products, clients,
                    cost_history, cost_profiles, storage_locations, levels,
                    racks, aisles, zones, user_warehouse_assignments,
                    user_company_access, user_sessions, users, warehouses,

@@ -8,6 +8,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "vitest run src/__tests__",
+    "db:seed": "python3 ../seeder/main.py",
     "prisma:generate": "prisma generate",
     "prisma:db-pull": "prisma db pull"
   },

@@ -45,6 +45,11 @@ def generate_auth_sql(company_ids):
     ('{exec_user_id}', '{company_ids['agrosur']}'),
     ('{exec_user_id}', '{company_ids['electrochile']}')
     ON CONFLICT DO NOTHING;
+
+    INSERT INTO executive_portfolio_history (id, executive_user_id, company_id, assigned_by_user_id, action, reason, created_at) VALUES
+    (gen_random_uuid(), '{exec_user_id}', '{company_ids['agrosur']}', '{super_admin_user_id}', 'ASSIGNED', 'Asignación inicial por seeder de prueba', NOW() - INTERVAL '30 days'),
+    (gen_random_uuid(), '{exec_user_id}', '{company_ids['electrochile']}', '{super_admin_user_id}', 'ASSIGNED', 'Asignación inicial por seeder de prueba', NOW() - INTERVAL '15 days')
+    ON CONFLICT DO NOTHING;
     """)
 
     # Crear roles y usuarios para cada empresa (COMPANY_ADMIN, WAREHOUSE_MANAGER, OPERATOR)
