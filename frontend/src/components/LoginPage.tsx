@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Cpu, Lock, Mail, AlertCircle, ArrowLeft, KeyRound } from 'lucide-react';
+import { Cpu, Lock, Mail, AlertCircle, ArrowLeft, KeyRound, Zap } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { API_BASE_URL } from '../config/api';
 
@@ -15,8 +15,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToLanding, onLoginSu
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const executeLogin = async (loginEmail: string, loginPass: string) => {
     setError(null);
     setLoading(true);
 
@@ -24,7 +23,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToLanding, onLoginSu
       const res = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: loginEmail, password: loginPass }),
       });
 
       const data = await res.json();
@@ -43,9 +42,18 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToLanding, onLoginSu
     }
   };
 
-  const setDemoCredentials = (demoEmail: string) => {
-    setEmail(demoEmail);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await executeLogin(email, password);
+  };
+
+  const handleSelectUser = (selectedEmail: string) => {
+    setEmail(selectedEmail);
     setPassword('admin123');
+  };
+
+  const handleQuickLogin = async () => {
+    await executeLogin(email, 'admin123');
   };
 
   return (
@@ -82,7 +90,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToLanding, onLoginSu
         <ArrowLeft size={16} /> Volver al Inicio
       </button>
 
-      <div className="glass-panel" style={{ width: '100%', maxWidth: '440px', padding: '36px' }}>
+      <div className="glass-panel" style={{ width: '100%', maxWidth: '480px', padding: '36px' }}>
         {/* Brand Logo */}
         <div style={{ textAlign: 'center', marginBottom: '28px' }}>
           <div
@@ -104,7 +112,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToLanding, onLoginSu
             Bodeg<span className="gradient-text">-IA</span>
           </h2>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Ingresa tus credenciales para acceder al Dashboard
+            Ingresa tus credenciales para acceder a la plataforma
           </p>
         </div>
 
@@ -129,7 +137,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToLanding, onLoginSu
           </div>
         )}
 
-        {/* Formulario */}
+        {/* Formulario Estándar */}
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>
             <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
@@ -185,8 +193,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToLanding, onLoginSu
             type="submit"
             disabled={loading}
             style={{
-              marginTop: '8px',
-              padding: '14px',
+              marginTop: '4px',
+              padding: '12px',
               borderRadius: '10px',
               border: 'none',
               background: 'linear-gradient(135deg, #38bdf8 0%, #818cf8 100%)',
@@ -202,18 +210,18 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToLanding, onLoginSu
           </button>
         </form>
 
-        {/* Selector de Cuentas Demo del Seeder */}
+        {/* Selector de Cuentas Reales del Seeder */}
         <div style={{ marginTop: '24px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
-          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
             <KeyRound size={14} color="var(--primary)" />
-            <span>Seleccionar Cuenta del Seeder (Clave predeterminada: <strong>admin123</strong>):</span>
+            <span>Usuarios de Prueba (Seeder):</span>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <select
               className="input"
               value={email}
-              onChange={(e) => setDemoCredentials(e.target.value)}
+              onChange={(e) => handleSelectUser(e.target.value)}
               style={{
                 width: '100%',
                 background: '#0d131f',
@@ -224,32 +232,53 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToLanding, onLoginSu
                 borderRadius: '8px',
               }}
             >
-              <optgroup label="Plataforma SaaS Global (SuperAdmins & Ejecutivos)">
-                <option value="admin@bodegia.cl">👑 SUPER_ADMIN — Global Platform Owner (admin@bodegia.cl)</option>
-                <option value="ejecutivo@bodegia.cl">💼 PLATFORM_ADMIN — Ejecutivo de Plataforma (ejecutivo@bodegia.cl)</option>
+              <optgroup label="👑 Plataforma SaaS Global">
+                <option value="admin@bodegia.cl">👑 Super Admin Global — admin@bodegia.cl</option>
+                <option value="ejecutivo@bodegia.cl">💼 Ejecutivo de Cuenta (Felipe Soto) — ejecutivo@bodegia.cl</option>
               </optgroup>
-              <optgroup label="AgroSur S.A. (Empresa Client Tenant 1)">
-                <option value="admin.agrosur@bodegia.cl">🏢 COMPANY_ADMIN — Admin AgroSur S.A. (admin.agrosur@bodegia.cl)</option>
-                <option value="jefe.pudahuel@bodegia.cl">📦 WAREHOUSE_MANAGER — Jefe Bodega Pudahuel (jefe.pudahuel@bodegia.cl)</option>
-                <option value="operador.agrosur@bodegia.cl">🚜 WAREHOUSE_OPERATOR — Operador Bodega (operador.agrosur@bodegia.cl)</option>
-                <option value="comercial.agrosur@bodegia.cl">📊 COMMERCIAL_MANAGEMENT — Gestión Comercial (comercial.agrosur@bodegia.cl)</option>
+
+              <optgroup label="🏢 AgroSur S.A. (Empresa Client 1)">
+                <option value="admin.agrosur@bodegia.cl">🏢 Admin Empresa (Sebastián Morales) — admin.agrosur@bodegia.cl</option>
+                <option value="jefe.pudahuel@bodegia.cl">📦 Jefe Bodega Pudahuel (Carlos Mendoza) — jefe.pudahuel@bodegia.cl</option>
+                <option value="operador.pudahuel@bodegia.cl">🚜 Operador Bodega (Rodrigo Silva) — operador.pudahuel@bodegia.cl</option>
+                <option value="comercial.agrosur@bodegia.cl">📊 Gestión Comercial (Andrea Tapia) — comercial.agrosur@bodegia.cl</option>
+                <option value="cliente.frutas@bodegia.cl">👁️ Cliente 3PL (Frutas Cachapoal) — cliente.frutas@bodegia.cl</option>
               </optgroup>
-              <optgroup label="Clientes 3PL Autoservicio (External Portal)">
-                <option value="cliente.961112223@bodegia.cl">👁️ CLIENT_VIEWER — Portal 3PL Frutas Cachapoal (cliente.961112223@bodegia.cl)</option>
+
+              <optgroup label="🏢 ElectroChile S.A. (Empresa Client 2)">
+                <option value="admin.electro@bodegia.cl">🏢 Admin Empresa (Valeria Fuentealba) — admin.electro@bodegia.cl</option>
+                <option value="jefe.huechuraba@bodegia.cl">📦 Jefe Bodega Huechuraba (Matías Tapia) — jefe.huechuraba@bodegia.cl</option>
+                <option value="comercial.electro@bodegia.cl">📊 Gestión Comercial (Camilo Lagos) — comercial.electro@bodegia.cl</option>
+                <option value="cliente.tech@bodegia.cl">👁️ Cliente 3PL (Retail Tech) — cliente.tech@bodegia.cl</option>
               </optgroup>
-              <optgroup label="Otras Empresas Tenant Registradas">
-                <option value="admin.logistica@bodegia.cl">🏢 COMPANY_ADMIN — Admin Logística Express (admin.logistica@bodegia.cl)</option>
-                <option value="admin.frutas@bodegia.cl">🏢 COMPANY_ADMIN — Admin Distribuidora Frutas (admin.frutas@bodegia.cl)</option>
+
+              <optgroup label="🏢 Distribuidora Austral">
+                <option value="admin.austral@bodegia.cl">🏢 Admin Empresa (Gonzalo Araya) — admin.austral@bodegia.cl</option>
+                <option value="jefe.nos@bodegia.cl">📦 Jefe Bodega Nos (Loreto Sepúlveda) — jefe.nos@bodegia.cl</option>
+              </optgroup>
+
+              <optgroup label="🏢 Textil Maipú & Químicos Industriales">
+                <option value="admin.textil@bodegia.cl">🏢 Admin Textil Maipú (Camila Benítez) — admin.textil@bodegia.cl</option>
+                <option value="admin.quimicos@bodegia.cl">🏢 Admin Químicos (Ignacio Villagra) — admin.quimicos@bodegia.cl</option>
+                <option value="jefe.lampa@bodegia.cl">📦 Jefe Bodega Lampa (Esteban Paredes) — jefe.lampa@bodegia.cl</option>
               </optgroup>
             </select>
 
             <button
               type="button"
-              onClick={() => setDemoCredentials(email)}
-              className="btn btn-secondary"
-              style={{ width: '100%', fontSize: '0.78rem', justifyContent: 'center', padding: '8px' }}
+              onClick={handleQuickLogin}
+              disabled={loading}
+              className="btn btn-primary"
+              style={{
+                width: '100%',
+                fontSize: '0.82rem',
+                justifyContent: 'center',
+                padding: '10px',
+                background: 'linear-gradient(135deg, #10b981 0%, #38bdf8 100%)',
+              }}
             >
-              ⚡ Cargar Credenciales de Usuario Seleccionado
+              <Zap size={16} />
+              <span>{loading ? 'Iniciando Sesión...' : '⚡ Iniciar Sesión Rápido con este Usuario'}</span>
             </button>
           </div>
         </div>
