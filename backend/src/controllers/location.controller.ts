@@ -5,15 +5,31 @@ import { AuthRequest } from '../middleware/auth.js';
 
 // --- SUCURSALES (BRANCHES) ---
 export async function getBranches(req: AuthRequest, res: Response) {
-  const companyId = req.user?.companyId;
+  const queryCompanyId = req.query?.company_id ? String(req.query.company_id) : null;
+  const companyId = (req.user?.roleCode === 'SUPER_ADMIN' || req.user?.roleCode === 'PLATFORM_ADMIN') && queryCompanyId
+    ? queryCompanyId
+    : req.user?.companyId;
+
+  const whereClause: any = { deleted_at: null };
+  if (companyId) whereClause.company_id = companyId;
+
   const branches = await prisma.branches.findMany({
-    where: { company_id: companyId, deleted_at: null },
+    where: whereClause,
+    include: { companies: true },
   });
   return sendSuccess(res, branches);
 }
 
 export async function createBranch(req: AuthRequest, res: Response) {
-  const companyId = req.user?.companyId;
+  const queryCompanyId = req.body?.company_id || req.query?.company_id;
+  const companyId = (req.user?.roleCode === 'SUPER_ADMIN' || req.user?.roleCode === 'PLATFORM_ADMIN') && queryCompanyId
+    ? queryCompanyId
+    : req.user?.companyId;
+
+  if (!companyId) {
+    return sendError(res, 'Debe especificar la empresa para crear la sucursal', 400);
+  }
+
   const branch = await prisma.branches.create({
     data: { ...req.body, company_id: companyId },
   });
@@ -41,17 +57,19 @@ export async function deleteBranch(req: AuthRequest, res: Response) {
 // --- BODEGAS ASIGNADAS Y BODEGAS (WAREHOUSES) ---
 export async function getMyAssignedWarehouses(req: AuthRequest, res: Response) {
   const userId = req.user?.userId;
-  const companyId = req.user?.companyId;
+  const queryCompanyId = req.query?.company_id ? String(req.query.company_id) : null;
+  const companyId = (req.user?.roleCode === 'SUPER_ADMIN' || req.user?.roleCode === 'PLATFORM_ADMIN') && queryCompanyId
+    ? queryCompanyId
+    : req.user?.companyId;
   const roleCode = req.user?.roleCode;
 
-  if (roleCode === 'SUPER_ADMIN' || roleCode === 'COMPANY_ADMIN') {
-    // Para administradores, listar todas las bodegas de la empresa (o globales)
+  if (roleCode === 'SUPER_ADMIN' || roleCode === 'PLATFORM_ADMIN' || roleCode === 'COMPANY_ADMIN') {
     const warehouses = await prisma.warehouses.findMany({
       where: {
         ...(companyId ? { company_id: companyId } : {}),
         deleted_at: null,
       },
-      include: { branches: true },
+      include: { branches: true, companies: true },
     });
     return sendSuccess(
       res,
@@ -60,17 +78,17 @@ export async function getMyAssignedWarehouses(req: AuthRequest, res: Response) {
         name: w.name,
         code: w.code,
         branchName: w.branches?.name,
+        companyName: w.companies?.name,
         isCostTrackingEnabled: w.is_cost_tracking_enabled,
       }))
     );
   }
 
-  // Para WAREHOUSE_MANAGER o WAREHOUSE_OPERATOR, consultar user_warehouse_assignments
   const assignments = await prisma.user_warehouse_assignments.findMany({
     where: { user_id: userId },
     include: {
       warehouses: {
-        include: { branches: true },
+        include: { branches: true, companies: true },
       },
     },
   });
@@ -82,6 +100,7 @@ export async function getMyAssignedWarehouses(req: AuthRequest, res: Response) {
       name: a.warehouses.name,
       code: a.warehouses.code,
       branchName: a.warehouses.branches?.name,
+      companyName: a.warehouses.companies?.name,
       isCostTrackingEnabled: a.warehouses.is_cost_tracking_enabled,
     }));
 
@@ -89,20 +108,33 @@ export async function getMyAssignedWarehouses(req: AuthRequest, res: Response) {
 }
 
 export async function getWarehouses(req: AuthRequest, res: Response) {
-  const companyId = req.user?.companyId;
+  const queryCompanyId = req.query?.company_id ? String(req.query.company_id) : null;
+  const companyId = (req.user?.roleCode === 'SUPER_ADMIN' || req.user?.roleCode === 'PLATFORM_ADMIN') && queryCompanyId
+    ? queryCompanyId
+    : req.user?.companyId;
+
+  const whereClause: any = { deleted_at: null };
+  if (companyId) whereClause.company_id = companyId;
+
   const warehouses = await prisma.warehouses.findMany({
-    where: { company_id: companyId, deleted_at: null },
-    include: { branches: true },
+    where: whereClause,
+    include: { branches: true, companies: true },
   });
   return sendSuccess(res, warehouses);
 }
 
 export async function getWarehouseTree(req: AuthRequest, res: Response) {
-  const companyId = req.user?.companyId;
   const { id } = req.params;
+  const queryCompanyId = req.query?.company_id ? String(req.query.company_id) : null;
+  const companyId = (req.user?.roleCode === 'SUPER_ADMIN' || req.user?.roleCode === 'PLATFORM_ADMIN') && queryCompanyId
+    ? queryCompanyId
+    : req.user?.companyId;
+
+  const whereClause: any = { id, deleted_at: null };
+  if (companyId) whereClause.company_id = companyId;
 
   const warehouse = await prisma.warehouses.findFirst({
-    where: { id, company_id: companyId, deleted_at: null },
+    where: whereClause,
     include: {
       branches: true,
       zones: {

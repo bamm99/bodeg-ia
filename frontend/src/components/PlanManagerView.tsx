@@ -29,8 +29,9 @@ export const PlanManagerView: React.FC = () => {
   const fetchPlans = async () => {
     try {
       setLoading(true);
-      const data = await apiFetch<PlanItem[]>('/saas/plans');
-      if (Array.isArray(data)) setPlans(data);
+      const res = await apiFetch<any>('/saas/plans');
+      const list = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
+      setPlans(list);
     } catch (err) {
       console.error('Error al cargar planes:', err);
     } finally {

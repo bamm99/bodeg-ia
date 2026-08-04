@@ -81,11 +81,13 @@ export async function authenticateToken(
       sessionId: decoded.sessionId,
     };
 
-    // Si el usuario pertenece a una empresa, inyectar el tenant id para RLS
-    if (req.user.companyId) {
-      await prisma.$executeRawUnsafe(
-        `SET LOCAL app.current_tenant_id = '${req.user.companyId}';`
-      );
+    // Inyección de variables RLS en PostgreSQL para aislamiento Multi-Tenant
+    if (req.user.roleCode === 'SUPER_ADMIN') {
+      await prisma.$executeRawUnsafe(`SET LOCAL app.current_company_id = 'BYPASS';`);
+      await prisma.$executeRawUnsafe(`SET LOCAL app.current_tenant_id = 'BYPASS';`);
+    } else if (req.user.companyId) {
+      await prisma.$executeRawUnsafe(`SET LOCAL app.current_company_id = '${req.user.companyId}';`);
+      await prisma.$executeRawUnsafe(`SET LOCAL app.current_tenant_id = '${req.user.companyId}';`);
     }
 
     next();

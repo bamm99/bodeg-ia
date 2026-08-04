@@ -47,6 +47,7 @@ import { SuperAdminDashboard } from './dashboard/SuperAdminDashboard';
 import { CompanyAdminDashboard } from './dashboard/CompanyAdminDashboard';
 import { WarehouseManagerDashboard } from './dashboard/WarehouseManagerDashboard';
 import { OperatorDashboard } from './dashboard/OperatorDashboard';
+import { SupportCompanySelector } from './SupportCompanySelector';
 
 interface SidebarItem {
   id: string;
@@ -68,6 +69,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) =>
   const [activeSection, setActiveSection] = useState<string>('dashboard');
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [supportCompanyId, setSupportCompanyId] = useState<string | null>(null);
 
   const roleCode = user?.role?.code || 'COMPANY_ADMIN';
 
@@ -530,7 +532,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) =>
               : activeSection}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <SupportCompanySelector selectedCompanyId={supportCompanyId} onSelectCompany={setSupportCompanyId} />
             <WarehouseSwitcherDropdown />
             {renderBadgeByRole()}
             <div className="badge badge-success">

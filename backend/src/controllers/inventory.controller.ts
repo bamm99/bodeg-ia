@@ -5,14 +5,21 @@ import { AuthRequest } from '../middleware/auth.js';
 
 // --- EXISTENCIAS ---
 export async function getInventoryItems(req: AuthRequest, res: Response) {
-  const companyId = req.user?.companyId;
-  const page = Number(req.query.page || 1);
-  const limit = Number(req.query.limit || 20);
+  const queryCompanyId = req.query?.company_id ? String(req.query.company_id) : null;
+  const companyId = (req.user?.roleCode === 'SUPER_ADMIN' || req.user?.roleCode === 'PLATFORM_ADMIN') && queryCompanyId
+    ? queryCompanyId
+    : req.user?.companyId;
+
+  const page = Number(req.query?.page || 1);
+  const limit = Number(req.query?.limit || 20);
   const skip = (page - 1) * limit;
+
+  const whereClause: any = {};
+  if (companyId) whereClause.company_id = companyId;
 
   const [items, total] = await Promise.all([
     prisma.inventory_items.findMany({
-      where: { company_id: companyId },
+      where: whereClause,
       include: {
         products: true,
         storage_locations: { include: { levels: { include: { racks: true } } } },
@@ -22,7 +29,7 @@ export async function getInventoryItems(req: AuthRequest, res: Response) {
       take: limit,
       orderBy: { created_at: 'desc' },
     }),
-    prisma.inventory_items.count({ where: { company_id: companyId } }),
+    prisma.inventory_items.count({ where: whereClause }),
   ]);
 
   return sendPaginated(res, items, {
@@ -283,9 +290,16 @@ export async function outboundStock(req: AuthRequest, res: Response) {
 
 // --- GESTIÓN DE SOLICITUDES DE DESPACHO 3PL ---
 export async function getDispatchRequests(req: AuthRequest, res: Response) {
-  const companyId = req.user?.companyId;
+  const queryCompanyId = req.query?.company_id ? String(req.query.company_id) : null;
+  const companyId = (req.user?.roleCode === 'SUPER_ADMIN' || req.user?.roleCode === 'PLATFORM_ADMIN') && queryCompanyId
+    ? queryCompanyId
+    : req.user?.companyId;
+
+  const whereClause: any = {};
+  if (companyId) whereClause.company_id = companyId;
+
   const requests = await prisma.dispatch_requests.findMany({
-    where: { company_id: companyId },
+    where: whereClause,
     include: {
       clients: { select: { id: true, name: true, tax_id: true } },
       products: { select: { id: true, sku: true, name: true } },
@@ -298,7 +312,10 @@ export async function getDispatchRequests(req: AuthRequest, res: Response) {
 }
 
 export async function createDispatchRequest(req: AuthRequest, res: Response) {
-  const companyId = req.user?.companyId;
+  const queryCompanyId = req.body?.company_id || req.query?.company_id;
+  const companyId = (req.user?.roleCode === 'SUPER_ADMIN' || req.user?.roleCode === 'PLATFORM_ADMIN') && queryCompanyId
+    ? queryCompanyId
+    : req.user?.companyId;
   const userId = req.user?.userId;
   const { product_id, client_id, quantity, notes } = req.body;
 
@@ -308,7 +325,7 @@ export async function createDispatchRequest(req: AuthRequest, res: Response) {
     targetClientId = user?.client_id || undefined;
   }
 
-  if (!targetClientId) {
+  if (!targetClientId && companyId) {
     const defaultClient = await prisma.clients.findFirst({
       where: { company_id: companyId, is_internal_company: false },
     });
@@ -362,14 +379,21 @@ export async function rejectDispatchRequest(req: AuthRequest, res: Response) {
 
 // --- HISTÓRICO KARDEX ---
 export async function getMovements(req: AuthRequest, res: Response) {
-  const companyId = req.user?.companyId;
-  const page = Number(req.query.page || 1);
-  const limit = Number(req.query.limit || 20);
+  const queryCompanyId = req.query?.company_id ? String(req.query.company_id) : null;
+  const companyId = (req.user?.roleCode === 'SUPER_ADMIN' || req.user?.roleCode === 'PLATFORM_ADMIN') && queryCompanyId
+    ? queryCompanyId
+    : req.user?.companyId;
+
+  const page = Number(req.query?.page || 1);
+  const limit = Number(req.query?.limit || 20);
   const skip = (page - 1) * limit;
+
+  const whereClause: any = {};
+  if (companyId) whereClause.company_id = companyId;
 
   const [movements, total] = await Promise.all([
     prisma.inventory_movements.findMany({
-      where: { company_id: companyId },
+      where: whereClause,
       include: {
         inventory_items: { include: { products: true } },
         users: { select: { full_name: true, email: true } },
@@ -380,7 +404,7 @@ export async function getMovements(req: AuthRequest, res: Response) {
       take: limit,
       orderBy: { created_at: 'desc' },
     }),
-    prisma.inventory_movements.count({ where: { company_id: companyId } }),
+    prisma.inventory_movements.count({ where: whereClause }),
   ]);
 
   return sendPaginated(res, movements, {

@@ -6,11 +6,19 @@ import { AuthRequest } from '../middleware/auth.js';
 
 // --- CLIENTES 3PL / PROPIETARIOS ---
 export async function getClients(req: AuthRequest, res: Response) {
-  const companyId = req.user?.companyId;
+  const queryCompanyId = req.query?.company_id ? String(req.query.company_id) : null;
+  const companyId = (req.user?.roleCode === 'SUPER_ADMIN' || req.user?.roleCode === 'PLATFORM_ADMIN') && queryCompanyId
+    ? queryCompanyId
+    : req.user?.companyId;
+
+  const whereClause: any = { deleted_at: null };
+  if (companyId) whereClause.company_id = companyId;
+
   const clients = await prisma.clients.findMany({
-    where: { company_id: companyId, deleted_at: null },
+    where: whereClause,
     include: {
       users: { select: { id: true, email: true, full_name: true, is_active: true } },
+      companies: true,
     },
   });
   return sendSuccess(res, clients);
