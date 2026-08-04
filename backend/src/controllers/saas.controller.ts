@@ -220,6 +220,11 @@ export async function getCompanyById(req: AuthRequest, res: Response) {
   const companyId = req.user?.companyId;
   const userId = req.user?.userId;
 
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!UUID_REGEX.test(id)) {
+    return sendError(res, 'Identificador de empresa inválido', 400);
+  }
+
   // Verificación estricta de aislamiento Multi-Tenant
   if (roleCode !== 'SUPER_ADMIN') {
     if (roleCode === 'PLATFORM_ADMIN') {

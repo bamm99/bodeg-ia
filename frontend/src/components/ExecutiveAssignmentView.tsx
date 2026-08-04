@@ -17,8 +17,6 @@ export const ExecutiveAssignmentView: React.FC = () => {
     apiFetch('/saas/companies?limit=100').then((res) => {
       if (res.data) setCompanies(res.data);
     });
-
-    apiFetch('/saas/companies/1').catch(() => {}); // warmup
   }, []);
 
   const loadExecutiveData = async (execId: string) => {
