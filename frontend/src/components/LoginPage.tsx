@@ -202,56 +202,54 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToLanding, onLoginSu
           </button>
         </form>
 
-        {/* Demo Fast Access Pills por Rol */}
+        {/* Selector de Cuentas Demo del Seeder */}
         <div style={{ marginTop: '24px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '10px' }}>
-            <KeyRound size={14} /> Seleccionar Rol Demo (Clave: admin123):
+          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+            <KeyRound size={14} color="var(--primary)" />
+            <span>Seleccionar Cuenta del Seeder (Clave predeterminada: <strong>admin123</strong>):</span>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <button
-              onClick={() => setDemoCredentials('admin@bodegia.cl')}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <select
+              className="input"
+              value={email}
+              onChange={(e) => setDemoCredentials(e.target.value)}
               style={{
-                fontSize: '0.75rem',
-                padding: '6px 10px',
-                borderRadius: '6px',
-                border: '1px solid rgba(56, 189, 248, 0.4)',
-                background: 'rgba(56, 189, 248, 0.1)',
-                color: '#38bdf8',
-                cursor: 'pointer',
-                textAlign: 'left',
+                width: '100%',
+                background: '#0d131f',
+                border: '1px solid var(--border-color)',
+                color: '#fff',
+                padding: '10px 12px',
+                fontSize: '0.82rem',
+                borderRadius: '8px',
               }}
             >
-              👑 <strong>Super Admin Global</strong> (admin@bodegia.cl)
-            </button>
+              <optgroup label="Plataforma SaaS Global (SuperAdmins & Ejecutivos)">
+                <option value="admin@bodegia.cl">👑 SUPER_ADMIN — Global Platform Owner (admin@bodegia.cl)</option>
+                <option value="ejecutivo@bodegia.cl">💼 PLATFORM_ADMIN — Ejecutivo de Plataforma (ejecutivo@bodegia.cl)</option>
+              </optgroup>
+              <optgroup label="AgroSur S.A. (Empresa Client Tenant 1)">
+                <option value="admin.agrosur@bodegia.cl">🏢 COMPANY_ADMIN — Admin AgroSur S.A. (admin.agrosur@bodegia.cl)</option>
+                <option value="jefe.pudahuel@bodegia.cl">📦 WAREHOUSE_MANAGER — Jefe Bodega Pudahuel (jefe.pudahuel@bodegia.cl)</option>
+                <option value="operador.agrosur@bodegia.cl">🚜 WAREHOUSE_OPERATOR — Operador Bodega (operador.agrosur@bodegia.cl)</option>
+                <option value="comercial.agrosur@bodegia.cl">📊 COMMERCIAL_MANAGEMENT — Gestión Comercial (comercial.agrosur@bodegia.cl)</option>
+              </optgroup>
+              <optgroup label="Clientes 3PL Autoservicio (External Portal)">
+                <option value="cliente.961112223@bodegia.cl">👁️ CLIENT_VIEWER — Portal 3PL Frutas Cachapoal (cliente.961112223@bodegia.cl)</option>
+              </optgroup>
+              <optgroup label="Otras Empresas Tenant Registradas">
+                <option value="admin.logistica@bodegia.cl">🏢 COMPANY_ADMIN — Admin Logística Express (admin.logistica@bodegia.cl)</option>
+                <option value="admin.frutas@bodegia.cl">🏢 COMPANY_ADMIN — Admin Distribuidora Frutas (admin.frutas@bodegia.cl)</option>
+              </optgroup>
+            </select>
+
             <button
-              onClick={() => setDemoCredentials('ejecutivo@bodegia.cl')}
-              style={{
-                fontSize: '0.75rem',
-                padding: '6px 10px',
-                borderRadius: '6px',
-                border: '1px solid rgba(129, 140, 248, 0.4)',
-                background: 'rgba(129, 140, 248, 0.1)',
-                color: '#818cf8',
-                cursor: 'pointer',
-                textAlign: 'left',
-              }}
+              type="button"
+              onClick={() => setDemoCredentials(email)}
+              className="btn btn-secondary"
+              style={{ width: '100%', fontSize: '0.78rem', justifyContent: 'center', padding: '8px' }}
             >
-              💼 <strong>Ejecutivo Plataforma</strong> (ejecutivo@bodegia.cl)
-            </button>
-            <button
-              onClick={() => setDemoCredentials('admin.agrosur@bodegia.cl')}
-              style={{
-                fontSize: '0.75rem',
-                padding: '6px 10px',
-                borderRadius: '6px',
-                border: '1px solid rgba(16, 185, 129, 0.4)',
-                background: 'rgba(16, 185, 129, 0.1)',
-                color: '#34d399',
-                cursor: 'pointer',
-                textAlign: 'left',
-              }}
-            >
-              🏢 <strong>Admin Empresa Single-Tenant</strong> (admin.agrosur@bodegia.cl)
+              ⚡ Cargar Credenciales de Usuario Seleccionado
             </button>
           </div>
         </div>
