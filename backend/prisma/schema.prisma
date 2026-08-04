@@ -33,47 +33,49 @@ model branches {
 }
 
 model clients {
-  id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  company_id          String            @db.Uuid
-  name                String            @db.VarChar(255)
-  tax_id              String?           @db.VarChar(50)
-  is_internal_company Boolean           @default(true)
-  deleted_at          DateTime?         @db.Timestamptz(6)
-  created_at          DateTime?         @default(now()) @db.Timestamptz(6)
-  updated_at          DateTime?         @default(now()) @db.Timestamptz(6)
-  companies           companies         @relation(fields: [company_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  company_id          String              @db.Uuid
+  name                String              @db.VarChar(255)
+  tax_id              String?             @db.VarChar(50)
+  is_internal_company Boolean             @default(true)
+  deleted_at          DateTime?           @db.Timestamptz(6)
+  created_at          DateTime?           @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime?           @default(now()) @db.Timestamptz(6)
+  companies           companies           @relation(fields: [company_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   inventory_items     inventory_items[]
   users               users[]
+  dispatch_requests   dispatch_requests[]
 }
 
 model companies {
-  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                String                @db.VarChar(255)
-  tax_id              String                @unique @db.VarChar(50)
-  address             String?
-  phone               String?               @db.VarChar(50)
-  is_active           Boolean               @default(true)
-  deleted_at          DateTime?             @db.Timestamptz(6)
-  created_at          DateTime?             @default(now()) @db.Timestamptz(6)
-  updated_at          DateTime?             @default(now()) @db.Timestamptz(6)
-  aisles              aisles[]
-  branches            branches[]
-  clients             clients[]
-  cost_history        cost_history[]
-  cost_profiles       cost_profiles[]
-  inventory_items     inventory_items[]
-  inventory_movements inventory_movements[]
-  levels              levels[]
-  products            products[]
-  racks               racks[]
-  roles               roles[]
-  storage_locations   storage_locations[]
+  id                          String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                        String                        @db.VarChar(255)
+  tax_id                      String                        @unique @db.VarChar(50)
+  address                     String?
+  phone                       String?                       @db.VarChar(50)
+  is_active                   Boolean                       @default(true)
+  deleted_at                  DateTime?                     @db.Timestamptz(6)
+  created_at                  DateTime?                     @default(now()) @db.Timestamptz(6)
+  updated_at                  DateTime?                     @default(now()) @db.Timestamptz(6)
+  aisles                      aisles[]
+  branches                    branches[]
+  clients                     clients[]
+  cost_history                cost_history[]
+  cost_profiles               cost_profiles[]
+  inventory_items             inventory_items[]
+  inventory_movements         inventory_movements[]
+  levels                      levels[]
+  products                    products[]
+  racks                       racks[]
+  roles                       roles[]
+  storage_locations           storage_locations[]
   executive_portfolio_history executive_portfolio_history[]
-  subscriptions       subscriptions[]
-  user_company_access user_company_access[]
-  users               users[]
-  warehouses          warehouses[]
-  zones               zones[]
+  subscriptions               subscriptions[]
+  user_company_access         user_company_access[]
+  users                       users[]
+  warehouses                  warehouses[]
+  zones                       zones[]
+  dispatch_requests           dispatch_requests[]
 }
 
 model cost_history {
@@ -164,6 +166,29 @@ model inventory_movements {
   @@index([company_id, created_at(sort: Desc)], map: "idx_movements_company_date")
 }
 
+model dispatch_requests {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  company_id           String    @db.Uuid
+  client_id            String    @db.Uuid
+  product_id           String    @db.Uuid
+  quantity             Int
+  requested_by_user_id String    @db.Uuid
+  approved_by_user_id  String?   @db.Uuid
+  status               String    @default("PENDING") @db.VarChar(20)
+  rejection_reason     String?
+  notes                String?
+  created_at           DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime? @default(now()) @db.Timestamptz(6)
+
+  companies                                           companies @relation(fields: [company_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  clients                                             clients   @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  products                                            products  @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users_dispatch_requests_requested_by_user_idTousers users     @relation("dispatch_requests_requested_by_user_idTousers", fields: [requested_by_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users_dispatch_requests_approved_by_user_idTousers  users?    @relation("dispatch_requests_approved_by_user_idTousers", fields: [approved_by_user_id], references: [id], onUpdate: NoAction)
+
+  @@index([company_id, created_at(sort: Desc)], map: "idx_dispatch_requests_company_date")
+}
+
 model levels {
   id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   company_id        String              @db.Uuid
@@ -200,18 +225,19 @@ model plans {
 }
 
 model products {
-  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  company_id      String            @db.Uuid
-  sku             String            @db.VarChar(100)
-  name            String            @db.VarChar(255)
-  unit_weight_kg  Decimal           @default(0.00) @db.Decimal(10, 2)
-  unit_volume_m3  Decimal           @default(0.0000) @db.Decimal(10, 4)
-  is_palletized   Boolean           @default(false)
-  deleted_at      DateTime?         @db.Timestamptz(6)
-  created_at      DateTime?         @default(now()) @db.Timestamptz(6)
-  updated_at      DateTime?         @default(now()) @db.Timestamptz(6)
-  inventory_items inventory_items[]
-  companies       companies         @relation(fields: [company_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  company_id        String              @db.Uuid
+  sku               String              @db.VarChar(100)
+  name              String              @db.VarChar(255)
+  unit_weight_kg    Decimal             @default(0.00) @db.Decimal(10, 2)
+  unit_volume_m3    Decimal             @default(0.0000) @db.Decimal(10, 4)
+  is_palletized     Boolean             @default(false)
+  deleted_at        DateTime?           @db.Timestamptz(6)
+  created_at        DateTime?           @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime?           @default(now()) @db.Timestamptz(6)
+  inventory_items   inventory_items[]
+  dispatch_requests dispatch_requests[]
+  companies         companies           @relation(fields: [company_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([company_id, sku], map: "uq_product_sku_company")
 }
@@ -325,27 +351,29 @@ model user_warehouse_assignments {
 }
 
 model users {
-  id                         String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  primary_company_id         String?                      @db.Uuid
-  client_id                  String?                      @db.Uuid
-  role_id                    String                       @db.Uuid
-  email                      String                       @unique @db.VarChar(255)
-  password_hash              String                       @db.VarChar(255)
-  full_name                  String                       @db.VarChar(255)
-  is_active                  Boolean                      @default(true)
-  deleted_at                 DateTime?                    @db.Timestamptz(6)
-  created_at                 DateTime?                    @default(now()) @db.Timestamptz(6)
-  updated_at                 DateTime?                    @default(now()) @db.Timestamptz(6)
-  cost_history               cost_history[]
-  inventory_movements        inventory_movements[]
-  user_company_access        user_company_access[]
-  user_sessions              user_sessions[]
-  user_warehouse_assignments user_warehouse_assignments[]
-  executive_history_assigned executive_portfolio_history[] @relation("executive_portfolio_history_executive_user_idTousers")
-  executive_history_performed executive_portfolio_history[] @relation("executive_portfolio_history_assigned_by_user_idTousers")
-  companies                  companies?                   @relation(fields: [primary_company_id], references: [id], onUpdate: NoAction)
-  clients                    clients?                     @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  roles                      roles                        @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  id                                                  String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  primary_company_id                                  String?                       @db.Uuid
+  client_id                                           String?                       @db.Uuid
+  role_id                                             String                        @db.Uuid
+  email                                               String                        @unique @db.VarChar(255)
+  password_hash                                       String                        @db.VarChar(255)
+  full_name                                           String                        @db.VarChar(255)
+  is_active                                           Boolean                       @default(true)
+  deleted_at                                          DateTime?                     @db.Timestamptz(6)
+  created_at                                          DateTime?                     @default(now()) @db.Timestamptz(6)
+  updated_at                                          DateTime?                     @default(now()) @db.Timestamptz(6)
+  cost_history                                        cost_history[]
+  inventory_movements                                 inventory_movements[]
+  user_company_access                                 user_company_access[]
+  user_sessions                                       user_sessions[]
+  user_warehouse_assignments                          user_warehouse_assignments[]
+  executive_history_assigned                          executive_portfolio_history[] @relation("executive_portfolio_history_executive_user_idTousers")
+  executive_history_performed                         executive_portfolio_history[] @relation("executive_portfolio_history_assigned_by_user_idTousers")
+  users_dispatch_requests_requested_by_user_idTousers dispatch_requests[]           @relation("dispatch_requests_requested_by_user_idTousers")
+  users_dispatch_requests_approved_by_user_idTousers  dispatch_requests[]           @relation("dispatch_requests_approved_by_user_idTousers")
+  companies                                           companies?                    @relation(fields: [primary_company_id], references: [id], onUpdate: NoAction)
+  clients                                             clients?                      @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  roles                                               roles                         @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([primary_company_id], map: "idx_users_company")
   @@index([client_id], map: "idx_users_client")
@@ -367,7 +395,6 @@ model executive_portfolio_history {
   @@index([company_id], map: "idx_portfolio_history_company")
 }
 
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model warehouses {
   id                         String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   company_id                 String                       @db.Uuid
