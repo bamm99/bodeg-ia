@@ -9,11 +9,8 @@ import {
   Package,
   ShoppingCart,
   Users,
-  ShieldCheck,
-  Settings,
   LogOut,
   Cpu,
-  Activity,
   Warehouse,
   Grid,
   CheckCircle2,
@@ -24,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { API_BASE_URL } from '../config/api';
+
 import { CompanyListView } from './CompanyListView';
 import { PlanManagerView } from './PlanManagerView';
 import { ExecutiveAssignmentView } from './ExecutiveAssignmentView';
@@ -44,6 +42,22 @@ import { PendingDispatchRequestsView } from './PendingDispatchRequestsView';
 import { KardexView } from './KardexView';
 import { InDevelopment } from './InDevelopment';
 import { WarehouseSwitcherDropdown } from './WarehouseSwitcherDropdown';
+
+import { SuperAdminDashboard } from './dashboard/SuperAdminDashboard';
+import { CompanyAdminDashboard } from './dashboard/CompanyAdminDashboard';
+import { WarehouseManagerDashboard } from './dashboard/WarehouseManagerDashboard';
+import { OperatorDashboard } from './dashboard/OperatorDashboard';
+
+interface SidebarItem {
+  id: string;
+  label: string;
+  icon: any;
+}
+
+interface SidebarGroup {
+  groupName: string;
+  items: SidebarItem[];
+}
 
 interface DashboardLayoutProps {
   onLogout: () => void;
@@ -79,39 +93,249 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) =>
     fetchOverview();
   }, [token]);
 
-  const allSidebarMenuItems = [
-    { id: 'dashboard', label: 'Resumen Dashboard', icon: LayoutDashboard, isReady: true, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_OPERATOR', 'CLIENT_VIEWER'] },
-    { id: 'companies', label: roleCode === 'SUPER_ADMIN' ? 'Empresas SaaS' : roleCode === 'PLATFORM_ADMIN' ? 'Cartola de Empresas' : 'Mi Empresa SaaS', icon: Building2, isReady: true, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN'] },
-    { id: 'branches', label: 'Sucursales Físicas', icon: Building2, isReady: true, roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
-    { id: 'warehouses', label: 'Bodegas & Naves', icon: Warehouse, isReady: true, roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
-    { id: 'spatial', label: 'Diseñador Espacial', icon: Grid, isReady: true, roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
-    { id: 'map2d', label: 'Plano 2D Interactivo', icon: Layers, isReady: true, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_OPERATOR'] },
-    { id: 'plans', label: 'Planes SaaS & Cuotas', icon: Crown, isReady: true, roles: ['SUPER_ADMIN'] },
-    { id: 'executives', label: 'Asignación de Cartolas', icon: Briefcase, isReady: true, roles: ['SUPER_ADMIN'] },
-    { id: 'costs', label: 'Tarifario & Costos AST', icon: DollarSign, isReady: true, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER'] },
-    { id: 'cost-editor', label: 'Editor Sintáctico AST', icon: Cpu, isReady: true, roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
-    { id: 'cost-simulator', label: 'Simulador & Liquidación 3PL', icon: DollarSign, isReady: true, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER'] },
-    { id: 'inventory', label: 'Histórico Kardex', icon: Package, isReady: true, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_OPERATOR', 'CLIENT_VIEWER'] },
-    { id: 'inbound', label: 'Recepción Inbound', icon: ArrowDownRight, isReady: true, roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_OPERATOR'] },
-    { id: 'relocate', label: 'Reubicación Relocate', icon: RefreshCw, isReady: true, roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_OPERATOR'] },
-    { id: 'outbound', label: 'Despacho Outbound', icon: ArrowUpRight, isReady: true, roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_OPERATOR'] },
-    { id: 'dispatch-requests', label: 'Solicitudes 3PL', icon: FileText, isReady: true, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'CLIENT_VIEWER'] },
-    { id: 'catalog', label: 'Catálogo de Productos', icon: ShoppingCart, isReady: true, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_OPERATOR'] },
-    { id: 'clients', label: 'Clientes 3PL', icon: Users, isReady: true, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'CLIENT_VIEWER'] },
-    { id: 'rbac', label: 'Usuarios & Permisos RBAC', icon: ShieldCheck, isReady: false, roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
-    { id: 'settings', label: 'Configuración Sistema', icon: Settings, isReady: false, roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
-  ];
+  // Estructura de menú agrupada por rol con lenguaje de negocio
+  const getMenuGroupsByRole = (): SidebarGroup[] => {
+    switch (roleCode) {
+      case 'SUPER_ADMIN':
+        return [
+          {
+            groupName: 'Principal',
+            items: [{ id: 'dashboard', label: 'Resumen Plataforma', icon: LayoutDashboard }],
+          },
+          {
+            groupName: 'Clientes & Empresas',
+            items: [
+              { id: 'companies', label: 'Empresas SaaS', icon: Building2 },
+              { id: 'executives', label: 'Asignación de Cartolas', icon: Briefcase },
+            ],
+          },
+          {
+            groupName: 'Planes & Cuotas',
+            items: [{ id: 'plans', label: 'Planes SaaS & Cuotas', icon: Crown }],
+          },
+          {
+            groupName: 'Infraestructura Red',
+            items: [
+              { id: 'branches', label: 'Sucursales Físicas', icon: Building2 },
+              { id: 'warehouses', label: 'Bodegas & Naves', icon: Warehouse },
+              { id: 'spatial', label: 'Diseñador Espacial', icon: Grid },
+              { id: 'map2d', label: 'Plano 2D Interactivo', icon: Layers },
+            ],
+          },
+          {
+            groupName: 'Operaciones & Inventario',
+            items: [
+              { id: 'inventory', label: 'Historial de Movimientos', icon: Package },
+              { id: 'inbound', label: 'Recepción de Mercancía', icon: ArrowDownRight },
+              { id: 'relocate', label: 'Mover Mercancía', icon: RefreshCw },
+              { id: 'outbound', label: 'Salida de Mercancía', icon: ArrowUpRight },
+              { id: 'dispatch-requests', label: 'Solicitudes 3PL', icon: FileText },
+              { id: 'catalog', label: 'Catálogo de SKUs', icon: ShoppingCart },
+              { id: 'clients', label: 'Clientes 3PL', icon: Users },
+            ],
+          },
+          {
+            groupName: 'Motor de Costos',
+            items: [
+              { id: 'costs', label: 'Tarifas de Almacenaje', icon: DollarSign },
+              { id: 'cost-editor', label: 'Editor de Fórmulas', icon: Cpu },
+              { id: 'cost-simulator', label: 'Simulador & Liquidación', icon: DollarSign },
+            ],
+          },
+        ];
 
-  const sidebarMenu = allSidebarMenuItems.filter((m) => m.roles.includes(roleCode));
+      case 'PLATFORM_ADMIN':
+        return [
+          {
+            groupName: 'Principal',
+            items: [{ id: 'dashboard', label: 'Mi Cartola Comercial', icon: LayoutDashboard }],
+          },
+          {
+            groupName: 'Mis Clientes',
+            items: [
+              { id: 'companies', label: 'Empresas en Cartola', icon: Building2 },
+              { id: 'clients', label: 'Clientes 3PL', icon: Users },
+            ],
+          },
+          {
+            groupName: 'Supervisión Bodegas',
+            items: [{ id: 'map2d', label: 'Plano 2D Interactivo', icon: Layers }],
+          },
+          {
+            groupName: 'Tarifas & Cotizaciones',
+            items: [
+              { id: 'costs', label: 'Tarifas de Almacenaje', icon: DollarSign },
+              { id: 'cost-simulator', label: 'Simulador de Cotización', icon: DollarSign },
+            ],
+          },
+          {
+            groupName: 'Operaciones & Solicitudes',
+            items: [
+              { id: 'dispatch-requests', label: 'Solicitudes 3PL', icon: FileText },
+              { id: 'inventory', label: 'Historial de Movimientos', icon: Package },
+              { id: 'catalog', label: 'Catálogo de SKUs', icon: ShoppingCart },
+            ],
+          },
+        ];
 
-  const currentMenuItem = sidebarMenu.find((m) => m.id === activeSection);
+      case 'COMPANY_ADMIN':
+        return [
+          {
+            groupName: 'Principal',
+            items: [{ id: 'dashboard', label: 'Resumen Empresa', icon: LayoutDashboard }],
+          },
+          {
+            groupName: 'Infraestructura',
+            items: [
+              { id: 'companies', label: 'Ficha de Empresa', icon: Building2 },
+              { id: 'branches', label: 'Sucursales', icon: Building2 },
+              { id: 'warehouses', label: 'Bodegas', icon: Warehouse },
+              { id: 'spatial', label: 'Diseñador Espacial', icon: Grid },
+              { id: 'map2d', label: 'Plano 2D Interactivo', icon: Layers },
+            ],
+          },
+          {
+            groupName: 'Inventario & Operaciones',
+            items: [
+              { id: 'inbound', label: 'Recepción de Mercancía', icon: ArrowDownRight },
+              { id: 'relocate', label: 'Mover Mercancía', icon: RefreshCw },
+              { id: 'outbound', label: 'Salida / Despacho', icon: ArrowUpRight },
+              { id: 'inventory', label: 'Historial Kardex', icon: Package },
+            ],
+          },
+          {
+            groupName: 'Clientes 3PL & Servicios',
+            items: [
+              { id: 'dispatch-requests', label: 'Solicitudes 3PL', icon: FileText },
+              { id: 'clients', label: 'Clientes 3PL', icon: Users },
+              { id: 'catalog', label: 'Catálogo de Productos', icon: ShoppingCart },
+            ],
+          },
+          {
+            groupName: 'Costos & Tarifas',
+            items: [
+              { id: 'costs', label: 'Tarifas por Zona', icon: DollarSign },
+              { id: 'cost-editor', label: 'Editor de Fórmulas', icon: Cpu },
+              { id: 'cost-simulator', label: 'Simulador & Liquidación', icon: DollarSign },
+            ],
+          },
+        ];
+
+      case 'WAREHOUSE_MANAGER':
+        return [
+          {
+            groupName: 'Principal',
+            items: [{ id: 'dashboard', label: 'Resumen Bodegas', icon: LayoutDashboard }],
+          },
+          {
+            groupName: 'Plano & Estructura',
+            items: [{ id: 'map2d', label: 'Plano 2D de Bodega', icon: Layers }],
+          },
+          {
+            groupName: 'Operaciones de Bodega',
+            items: [
+              { id: 'inbound', label: 'Recepción de Mercancía', icon: ArrowDownRight },
+              { id: 'relocate', label: 'Mover Mercancía', icon: RefreshCw },
+              { id: 'outbound', label: 'Salida de Mercancía', icon: ArrowUpRight },
+              { id: 'inventory', label: 'Historial Kardex Bodega', icon: Package },
+            ],
+          },
+          {
+            groupName: 'Despachos 3PL',
+            items: [
+              { id: 'dispatch-requests', label: 'Solicitudes 3PL', icon: FileText },
+              { id: 'catalog', label: 'Catálogo de SKUs', icon: ShoppingCart },
+            ],
+          },
+          {
+            groupName: 'Tarifas (Consulta)',
+            items: [
+              { id: 'costs', label: 'Tarifas por Zona', icon: DollarSign },
+              { id: 'cost-simulator', label: 'Simulador de Almacenaje', icon: DollarSign },
+            ],
+          },
+        ];
+
+      case 'WAREHOUSE_OPERATOR':
+        return [
+          {
+            groupName: 'Principal',
+            items: [{ id: 'dashboard', label: 'Mis Tareas del Día', icon: LayoutDashboard }],
+          },
+          {
+            groupName: 'Ubicación & Mapa',
+            items: [
+              { id: 'map2d', label: 'Plano 2D de Bodega', icon: Layers },
+              { id: 'catalog', label: 'Catálogo de SKUs', icon: ShoppingCart },
+            ],
+          },
+          {
+            groupName: 'Operaciones en Terreno',
+            items: [
+              { id: 'inbound', label: 'Recepción de Mercancía', icon: ArrowDownRight },
+              { id: 'relocate', label: 'Mover Mercancía', icon: RefreshCw },
+              { id: 'outbound', label: 'Despacho de Mercancía', icon: ArrowUpRight },
+              { id: 'inventory', label: 'Historial Kardex', icon: Package },
+            ],
+          },
+        ];
+
+      case 'COMMERCIAL_MANAGEMENT':
+        return [
+          {
+            groupName: 'Principal',
+            items: [{ id: 'dashboard', label: 'Resumen Comercial', icon: LayoutDashboard }],
+          },
+          {
+            groupName: 'Clientes 3PL',
+            items: [
+              { id: 'clients', label: 'Cartera Clientes 3PL', icon: Users },
+              { id: 'dispatch-requests', label: 'Solicitudes 3PL', icon: FileText },
+            ],
+          },
+          {
+            groupName: 'Tarifas & Cotización',
+            items: [
+              { id: 'costs', label: 'Tarifas por Zona', icon: DollarSign },
+              { id: 'cost-simulator', label: 'Simulador & Liquidación', icon: DollarSign },
+            ],
+          },
+          {
+            groupName: 'Catálogo',
+            items: [{ id: 'catalog', label: 'Catálogo de SKUs', icon: ShoppingCart }],
+          },
+        ];
+
+      case 'CLIENT_VIEWER':
+      default:
+        return [
+          {
+            groupName: 'Principal',
+            items: [{ id: 'dashboard', label: 'Mi Stock en Custodia', icon: LayoutDashboard }],
+          },
+          {
+            groupName: 'Solicitudes de Despacho',
+            items: [{ id: 'dispatch-requests', label: 'Mis Solicitudes 3PL', icon: FileText }],
+          },
+          {
+            groupName: 'Inventario',
+            items: [
+              { id: 'inventory', label: 'Historial Kardex', icon: Package },
+              { id: 'clients', label: 'Mi Ficha 3PL', icon: Users },
+            ],
+          },
+        ];
+    }
+  };
+
+  const menuGroups = getMenuGroupsByRole();
 
   // Distintivo de alcance de empresa / plataforma según Rol
   const renderBadgeByRole = () => {
     if (roleCode === 'SUPER_ADMIN') {
       return (
         <div className="badge badge-primary" style={{ background: 'rgba(56, 189, 248, 0.2)', border: '1px solid #38bdf8' }}>
-          <Crown size={14} color="#38bdf8" /> Super Admin — Visibilidad Total Plataforma
+          <Crown size={14} color="#38bdf8" /> Super Admin — Plataforma Global
         </div>
       );
     }
@@ -129,6 +353,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) =>
     );
   };
 
+  const handleNavigate = (section: string) => {
+    setActiveSection(section);
+  };
+
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-dark)' }}>
       {/* Sidebar Navigation */}
@@ -143,9 +371,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) =>
           padding: '20px 16px',
         }}
       >
-        <div>
+        <div style={{ overflowY: 'auto' }}>
           {/* Brand */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '28px', padding: '0 8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px', padding: '0 8px' }}>
             <div
               style={{
                 width: '36px',
@@ -164,56 +392,62 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) =>
             </span>
           </div>
 
-          {/* Navigation Links */}
-          <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            {sidebarMenu.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeSection === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveSection(item.id)}
+          {/* Grouped Navigation Links */}
+          <nav style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+            {menuGroups.map((group, idx) => (
+              <div key={idx}>
+                <div
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    width: '100%',
-                    padding: '10px 14px',
-                    borderRadius: '10px',
-                    border: isActive ? '1px solid var(--primary)' : '1px solid transparent',
-                    background: isActive ? 'var(--primary-glow)' : 'transparent',
-                    color: isActive ? 'var(--primary)' : 'var(--text-muted)',
-                    fontSize: '0.85rem',
-                    fontWeight: isActive ? 700 : 500,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
+                    fontSize: '0.68rem',
+                    fontWeight: 800,
+                    color: 'var(--text-muted)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                    marginBottom: '6px',
+                    padding: '0 10px',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <Icon size={18} />
-                    <span>{item.label}</span>
-                  </div>
-                  {!item.isReady && (
-                    <span
-                      style={{
-                        fontSize: '0.65rem',
-                        padding: '2px 6px',
-                        borderRadius: '4px',
-                        background: 'rgba(245, 158, 11, 0.15)',
-                        color: '#fcd34d',
-                      }}
-                    >
-                      Dev
-                    </span>
-                  )}
-                </button>
-              );
-            })}
+                  {group.groupName}
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = activeSection === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => setActiveSection(item.id)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: '8px',
+                          border: isActive ? '1px solid var(--primary)' : '1px solid transparent',
+                          background: isActive ? 'var(--primary-glow)' : 'transparent',
+                          color: isActive ? 'var(--primary)' : 'var(--text-muted)',
+                          fontSize: '0.83rem',
+                          fontWeight: isActive ? 700 : 500,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <Icon size={16} />
+                        <span>{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </nav>
         </div>
 
         {/* User Footer Profile */}
-        <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+        <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px', marginTop: '16px' }}>
           <div style={{ marginBottom: '12px', padding: '0 8px' }}>
             <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#fff' }}>{user?.fullName || 'Usuario'}</div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{user?.role?.name || roleCode}</div>
@@ -242,7 +476,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) =>
       </aside>
 
       {/* Main Content Area */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         {/* Top Header */}
         <header
           style={{
@@ -257,7 +491,43 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) =>
           }}
         >
           <div style={{ fontSize: '1rem', fontWeight: 700, color: '#fff' }}>
-            {currentMenuItem?.label || 'Dashboard'}
+            {activeSection === 'dashboard'
+              ? 'Dashboard General'
+              : activeSection === 'companies'
+              ? 'Gestión de Empresas'
+              : activeSection === 'branches'
+              ? 'Sucursales Físicas'
+              : activeSection === 'warehouses'
+              ? 'Bodegas & Naves'
+              : activeSection === 'spatial'
+              ? 'Diseñador Espacial'
+              : activeSection === 'map2d'
+              ? 'Plano 2D Interactivo'
+              : activeSection === 'inbound'
+              ? 'Recepción de Mercancía (Inbound)'
+              : activeSection === 'relocate'
+              ? 'Mover Mercancía (Relocate)'
+              : activeSection === 'outbound'
+              ? 'Salida de Mercancía (Outbound)'
+              : activeSection === 'inventory'
+              ? 'Historial Kardex de Movimientos'
+              : activeSection === 'dispatch-requests'
+              ? 'Solicitudes de Despacho 3PL'
+              : activeSection === 'costs'
+              ? 'Tarifas por Zona'
+              : activeSection === 'cost-editor'
+              ? 'Editor de Fórmulas de Costo'
+              : activeSection === 'cost-simulator'
+              ? 'Simulador & Liquidación 3PL'
+              : activeSection === 'catalog'
+              ? 'Catálogo de SKUs'
+              : activeSection === 'clients'
+              ? 'Clientes 3PL'
+              : activeSection === 'plans'
+              ? 'Planes SaaS & Cuotas'
+              : activeSection === 'executives'
+              ? 'Asignación de Cartolas'
+              : activeSection}
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -272,174 +542,18 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) =>
         {/* Dynamic Body Content */}
         <main style={{ flex: 1, padding: '28px', overflowY: 'auto' }}>
           {activeSection === 'dashboard' ? (
-            roleCode === 'CLIENT_VIEWER' ? (
+            roleCode === 'SUPER_ADMIN' ? (
+              <SuperAdminDashboard data={dashboardData} loading={loading} onNavigate={handleNavigate} />
+            ) : roleCode === 'COMPANY_ADMIN' ? (
+              <CompanyAdminDashboard data={dashboardData} loading={loading} user={user} onNavigate={handleNavigate} />
+            ) : roleCode === 'WAREHOUSE_MANAGER' ? (
+              <WarehouseManagerDashboard user={user} onNavigate={handleNavigate} />
+            ) : roleCode === 'WAREHOUSE_OPERATOR' ? (
+              <OperatorDashboard onNavigate={handleNavigate} />
+            ) : roleCode === 'CLIENT_VIEWER' ? (
               <ClientPortalDashboard />
             ) : (
-            <div>
-              <div style={{ marginBottom: '24px' }}>
-                <h1 style={{ fontSize: '1.6rem', fontWeight: 800 }}>
-                  Bienvenido, <span className="gradient-text">{user?.fullName || 'Administrador'}</span>
-                </h1>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '4px' }}>
-                  {dashboardData?.scopeName || 'Cargando alcance del usuario...'}
-                </p>
-              </div>
-
-              {/* Statistics Grid Cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '32px' }}>
-                {roleCode === 'SUPER_ADMIN' ? (
-                  <>
-                    <div className="glass-panel" style={{ padding: '20px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '8px' }}>
-                        <span>Empresas Registradas</span>
-                        <Building2 size={18} color="var(--primary)" />
-                      </div>
-                      <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#fff' }}>
-                        {loading ? '...' : dashboardData?.stats?.totalCompaniesCount || 5}
-                      </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--accent)', marginTop: '4px' }}>Empresas SaaS Activas</div>
-                    </div>
-
-                    <div className="glass-panel" style={{ padding: '20px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '8px' }}>
-                        <span>Total Bodegas Plataforma</span>
-                        <Warehouse size={18} color="var(--secondary)" />
-                      </div>
-                      <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#fff' }}>
-                        {loading ? '...' : dashboardData?.stats?.totalWarehousesCount || 6}
-                      </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>Bodegas registradas globales</div>
-                    </div>
-
-                    <div className="glass-panel" style={{ padding: '20px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '8px' }}>
-                        <span>Almacenaje Global (m³)</span>
-                        <Layers size={18} color="var(--warning)" />
-                      </div>
-                      <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#fff' }}>
-                        {loading ? '...' : `${dashboardData?.stats?.totalStorageM3 || 1440.0} m³`}
-                      </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--warning)', marginTop: '4px' }}>Capacidad agregada total</div>
-                    </div>
-
-                    <div className="glass-panel" style={{ padding: '20px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '8px' }}>
-                        <span>Ocupación Agregada</span>
-                        <Activity size={18} color="var(--accent)" />
-                      </div>
-                      <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--primary)' }}>
-                        {loading ? '...' : `${dashboardData?.stats?.totalOccupiedM3 || 560.4} m³`}
-                      </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--accent)', marginTop: '4px' }}>Ocupación de red de bodegas</div>
-                    </div>
-                  </>
-                ) : roleCode === 'PLATFORM_ADMIN' ? (
-                  <>
-                    <div className="glass-panel" style={{ padding: '20px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '8px' }}>
-                        <span>Cartola de Clientes Asignados</span>
-                        <Briefcase size={18} color="var(--primary)" />
-                      </div>
-                      <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#fff' }}>
-                        {loading ? '...' : dashboardData?.stats?.assignedCompaniesCount || 2}
-                      </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--accent)', marginTop: '4px' }}>Empresas a tu cargo</div>
-                    </div>
-
-                    <div className="glass-panel" style={{ padding: '20px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '8px' }}>
-                        <span>Bodegas a tu Cargo</span>
-                        <Warehouse size={18} color="var(--secondary)" />
-                      </div>
-                      <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#fff' }}>
-                        {loading ? '...' : dashboardData?.stats?.totalWarehousesCount || 3}
-                      </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>Bodegas en tu cartola</div>
-                    </div>
-
-                    <div className="glass-panel" style={{ padding: '20px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '8px' }}>
-                        <span>Capacidad Cartola (m³)</span>
-                        <Layers size={18} color="var(--warning)" />
-                      </div>
-                      <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#fff' }}>
-                        {loading ? '...' : `${dashboardData?.stats?.totalStorageM3 || 720.0} m³`}
-                      </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--warning)', marginTop: '4px' }}>Volumen supervisado</div>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="glass-panel" style={{ padding: '20px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '8px' }}>
-                        <span>Bodegas de la Empresa</span>
-                        <Warehouse size={18} color="var(--primary)" />
-                      </div>
-                      <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#fff' }}>
-                        {loading ? '...' : dashboardData?.stats?.totalWarehousesCount || 2}
-                      </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--accent)', marginTop: '4px' }}>Sucursales propias</div>
-                    </div>
-
-                    <div className="glass-panel" style={{ padding: '20px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '8px' }}>
-                        <span>Capacidad de Almacenaje</span>
-                        <Layers size={18} color="var(--secondary)" />
-                      </div>
-                      <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#fff' }}>
-                        {loading ? '...' : `${dashboardData?.stats?.totalStorageM3 || 480.0} m³`}
-                      </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>Capacidad contratada</div>
-                    </div>
-
-                    <div className="glass-panel" style={{ padding: '20px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '8px' }}>
-                        <span>Plan SaaS Contratado</span>
-                        <Activity size={18} color="var(--accent)" />
-                      </div>
-                      <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--primary)', marginTop: '4px' }}>
-                        {loading ? '...' : dashboardData?.stats?.planName || 'PRO'}
-                      </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>Empresa Activa</div>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Lista Detallada de Empresas (Para Super Admin & Platform Executive) */}
-              {(roleCode === 'SUPER_ADMIN' || roleCode === 'PLATFORM_ADMIN') && (
-                <div className="glass-panel" style={{ padding: '24px' }}>
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '16px' }}>
-                    {roleCode === 'SUPER_ADMIN' ? '🏢 Empresas Registradas en la Plataforma' : '💼 Cartola de Clientes a tu Cargo'}
-                  </h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {(dashboardData?.companiesList || dashboardData?.assignedCompanies || []).map((comp: any) => (
-                      <div
-                        key={comp.id}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          padding: '14px 18px',
-                          background: 'rgba(255, 255, 255, 0.03)',
-                          border: '1px solid var(--border-color)',
-                          borderRadius: '10px',
-                        }}
-                      >
-                        <div>
-                          <div style={{ fontWeight: 700, color: '#fff', fontSize: '0.95rem' }}>{comp.name}</div>
-                          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>RUT: {comp.taxId}</div>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{comp.warehousesCount} Bodega(s)</span>
-                          <span className="badge badge-primary">{comp.planName}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+              <CompanyAdminDashboard data={dashboardData} loading={loading} user={user} onNavigate={handleNavigate} />
             )
           ) : activeSection === 'companies' ? (
             <CompanyListView />
@@ -477,7 +591,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) =>
             <ExecutiveAssignmentView />
           ) : (
             <InDevelopment
-              sectionTitle={currentMenuItem?.label || activeSection}
+              sectionTitle={activeSection}
               onBackToDashboard={() => setActiveSection('dashboard')}
             />
           )}
