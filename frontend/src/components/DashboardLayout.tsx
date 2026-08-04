@@ -17,6 +17,10 @@ import {
   Warehouse,
   Grid,
   CheckCircle2,
+  ArrowDownRight,
+  ArrowUpRight,
+  RefreshCw,
+  FileText,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { API_BASE_URL } from '../config/api';
@@ -33,6 +37,11 @@ import { ClientPortalDashboard } from './ClientPortalDashboard';
 import { CostProfilesManagerView } from './CostProfilesManagerView';
 import { ASTFormulaEditorView } from './ASTFormulaEditorView';
 import { CostSimulatorView } from './CostSimulatorView';
+import { InboundFormView } from './InboundFormView';
+import { RelocateFormView } from './RelocateFormView';
+import { OutboundFormView } from './OutboundFormView';
+import { PendingDispatchRequestsView } from './PendingDispatchRequestsView';
+import { KardexView } from './KardexView';
 import { InDevelopment } from './InDevelopment';
 import { WarehouseSwitcherDropdown } from './WarehouseSwitcherDropdown';
 
@@ -82,7 +91,11 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) =>
     { id: 'costs', label: 'Tarifario & Costos AST', icon: DollarSign, isReady: true, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER'] },
     { id: 'cost-editor', label: 'Editor Sintáctico AST', icon: Cpu, isReady: true, roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
     { id: 'cost-simulator', label: 'Simulador & Liquidación 3PL', icon: DollarSign, isReady: true, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER'] },
-    { id: 'inventory', label: 'Inventario & Kardex', icon: Package, isReady: false, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_OPERATOR', 'CLIENT_VIEWER'] },
+    { id: 'inventory', label: 'Histórico Kardex', icon: Package, isReady: true, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_OPERATOR', 'CLIENT_VIEWER'] },
+    { id: 'inbound', label: 'Recepción Inbound', icon: ArrowDownRight, isReady: true, roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_OPERATOR'] },
+    { id: 'relocate', label: 'Reubicación Relocate', icon: RefreshCw, isReady: true, roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_OPERATOR'] },
+    { id: 'outbound', label: 'Despacho Outbound', icon: ArrowUpRight, isReady: true, roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_OPERATOR'] },
+    { id: 'dispatch-requests', label: 'Solicitudes 3PL', icon: FileText, isReady: true, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'CLIENT_VIEWER'] },
     { id: 'catalog', label: 'Catálogo de Productos', icon: ShoppingCart, isReady: true, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_OPERATOR'] },
     { id: 'clients', label: 'Clientes 3PL', icon: Users, isReady: true, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'CLIENT_VIEWER'] },
     { id: 'rbac', label: 'Usuarios & Permisos RBAC', icon: ShieldCheck, isReady: false, roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
@@ -444,6 +457,16 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) =>
             <ASTFormulaEditorView />
           ) : activeSection === 'cost-simulator' ? (
             <CostSimulatorView />
+          ) : activeSection === 'inventory' ? (
+            <KardexView />
+          ) : activeSection === 'inbound' ? (
+            <InboundFormView />
+          ) : activeSection === 'relocate' ? (
+            <RelocateFormView />
+          ) : activeSection === 'outbound' ? (
+            <OutboundFormView />
+          ) : activeSection === 'dispatch-requests' ? (
+            <PendingDispatchRequestsView />
           ) : activeSection === 'catalog' ? (
             <ProductsCatalogView />
           ) : activeSection === 'clients' ? (

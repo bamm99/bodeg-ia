@@ -188,19 +188,44 @@ export async function relocateStock(req: AuthRequest, res: Response) {
   return sendSuccess(res, result, 200, 'Mercancía reubicada exitosamente');
 }
 
-// --- DESPACHO / SALIDA (OUTBOUND) ---
+// --- DESPACHO / SALIDA (OUTBOUND BIFURCADO) ---
 export async function outboundStock(req: AuthRequest, res: Response) {
   const companyId = req.user?.companyId;
   const userId = req.user?.userId;
-  const { inventory_item_id, quantity } = req.body;
+  const { inventory_item_id, quantity, dispatch_request_id } = req.body;
 
   const item = await prisma.inventory_items.findUnique({
     where: { id: inventory_item_id },
+    include: { clients: true },
   });
 
   if (!item) return sendError(res, 'Item de inventario no encontrado', 404);
   if (quantity > item.quantity) {
     return sendError(res, `Stock insuficiente. Disponible: ${item.quantity}`, 400);
+  }
+
+  // BIFURCACIÓN DE ACCESO: Si pertenece a un cliente 3PL externo, exige solicitud en estado APPROVED
+  const is3PLExternal = item.clients && !item.clients.is_internal_company;
+  if (is3PLExternal) {
+    if (!dispatch_request_id) {
+      return sendError(
+        res,
+        'El despacho de mercancía 3PL pertenece a un cliente externo y exige una solicitud previa autorizada (dispatch_request_id en estado APPROVED)',
+        403
+      );
+    }
+
+    const request = await prisma.dispatch_requests.findUnique({
+      where: { id: dispatch_request_id },
+    });
+
+    if (!request || request.status !== 'APPROVED') {
+      return sendError(
+        res,
+        'La solicitud de despacho indicada no existe o no se encuentra en estado APPROVED',
+        403
+      );
+    }
   }
 
   const volFreed = (Number(item.occupied_m3) / item.quantity) * quantity;
@@ -230,7 +255,15 @@ export async function outboundStock(req: AuthRequest, res: Response) {
       });
     }
 
-    // 3. Registrar Kardex Outbound
+    // 3. Marcar solicitud 3PL como FULFILLED si corresponde
+    if (dispatch_request_id) {
+      await tx.dispatch_requests.update({
+        where: { id: dispatch_request_id },
+        data: { status: 'FULFILLED' },
+      });
+    }
+
+    // 4. Registrar Kardex Outbound
     const movement = await tx.inventory_movements.create({
       data: {
         company_id: companyId!,
@@ -246,6 +279,85 @@ export async function outboundStock(req: AuthRequest, res: Response) {
   });
 
   return sendSuccess(res, result, 200, 'Salida/Despacho registrado en Kardex');
+}
+
+// --- GESTIÓN DE SOLICITUDES DE DESPACHO 3PL ---
+export async function getDispatchRequests(req: AuthRequest, res: Response) {
+  const companyId = req.user?.companyId;
+  const requests = await prisma.dispatch_requests.findMany({
+    where: { company_id: companyId },
+    include: {
+      clients: { select: { id: true, name: true, tax_id: true } },
+      products: { select: { id: true, sku: true, name: true } },
+      users_dispatch_requests_requested_by_user_idTousers: { select: { full_name: true, email: true } },
+      users_dispatch_requests_approved_by_user_idTousers: { select: { full_name: true, email: true } },
+    },
+    orderBy: { created_at: 'desc' },
+  });
+  return sendSuccess(res, requests);
+}
+
+export async function createDispatchRequest(req: AuthRequest, res: Response) {
+  const companyId = req.user?.companyId;
+  const userId = req.user?.userId;
+  const { product_id, client_id, quantity, notes } = req.body;
+
+  let targetClientId = client_id;
+  if (!targetClientId) {
+    const user = await prisma.users.findUnique({ where: { id: userId } });
+    targetClientId = user?.client_id || undefined;
+  }
+
+  if (!targetClientId) {
+    const defaultClient = await prisma.clients.findFirst({
+      where: { company_id: companyId, is_internal_company: false },
+    });
+    targetClientId = defaultClient?.id;
+  }
+
+  const request = await prisma.dispatch_requests.create({
+    data: {
+      company_id: companyId!,
+      client_id: targetClientId!,
+      product_id,
+      quantity,
+      requested_by_user_id: userId!,
+      status: 'PENDING',
+      notes: notes || null,
+    },
+  });
+
+  return sendSuccess(res, request, 201, 'Solicitud de despacho 3PL enviada (Estado: PENDING)');
+}
+
+export async function approveDispatchRequest(req: AuthRequest, res: Response) {
+  const { id } = req.params;
+  const userId = req.user?.userId;
+
+  const request = await prisma.dispatch_requests.update({
+    where: { id },
+    data: {
+      status: 'APPROVED',
+      approved_by_user_id: userId,
+    },
+  });
+
+  return sendSuccess(res, request, 200, 'Solicitud de despacho 3PL aprobada (Estado: APPROVED)');
+}
+
+export async function rejectDispatchRequest(req: AuthRequest, res: Response) {
+  const { id } = req.params;
+  const { rejection_reason } = req.body;
+
+  const request = await prisma.dispatch_requests.update({
+    where: { id },
+    data: {
+      status: 'REJECTED',
+      rejection_reason: rejection_reason || 'Rechazada por supervisor de bodega',
+    },
+  });
+
+  return sendSuccess(res, request, 200, 'Solicitud de despacho 3PL rechazada (Estado: REJECTED)');
 }
 
 // --- HISTÓRICO KARDEX ---
