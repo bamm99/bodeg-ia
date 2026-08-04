@@ -103,6 +103,6 @@ def generate_spatial_sql(company_ids):
                             ('{loc_id}', '{cid}', '{lvl_id}', '{loc_code}', 1250, {tot_vol}, {occ_vol}, '{status}');
                             """)
 
-                            location_ids.append((loc_id, loc_code, cid, zid, rack_id, lvl_id))
+                            location_ids.append((loc_id, loc_code, cid, wid, cost_enabled, zid, rack_id, lvl_id))
 
     return "\n".join(sql), warehouse_ids, location_ids

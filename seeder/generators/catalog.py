@@ -4,6 +4,7 @@ def generate_catalog_sql(company_ids):
     sql = []
     product_ids = []
     client_ids = []
+    client_ids_map = {}
 
     # Productos por Empresa
     products_catalog = {
@@ -38,16 +39,16 @@ def generate_catalog_sql(company_ids):
     }
 
     clients_data = {
-        'agrosur': [('Propio AgroSur', '76.890.123-5', True), ('Frutas del Cachapoal Ltda', '96.111.222-3', False)],
-        'electrochile': [('Propio ElectroChile', '77.456.789-K', True), ('Retail Tech Store SpA', '95.333.444-5', False)],
-        'austral': [('Propio Austral', '78.123.456-7', True), ('Supermercados del Sur S.A.', '94.555.666-7', False)],
-        'textil': [('Propio Textil Maipú', '79.987.654-3', True), ('Confecciones Santiago Ltda', '93.777.888-9', False)],
-        'quimicos': [('Propio Químicos Hazmat', '80.111.222-1', True), ('Minería & Procesos SpA', '92.999.000-1', False)],
+        'agrosur': [('Propio AgroSur', '76.890.123-5', True, 'own'), ('Frutas del Cachapoal Ltda', '96.111.222-3', False, 'frutas')],
+        'electrochile': [('Propio ElectroChile', '77.456.789-K', True, 'own'), ('Retail Tech Store SpA', '95.333.444-5', False, 'retail')],
+        'austral': [('Propio Austral', '78.123.456-7', True, 'own'), ('Supermercados del Sur S.A.', '94.555.666-7', False, 'superSur')],
+        'textil': [('Propio Textil Maipú', '79.987.654-3', True, 'own'), ('Confecciones Santiago Ltda', '93.777.888-9', False, 'stgoConfecciones')],
+        'quimicos': [('Propio Químicos Hazmat', '80.111.222-1', True, 'own'), ('Minería & Procesos SpA', '92.999.000-1', False, 'mineria')],
     }
 
     for key, cid in company_ids.items():
         # Insertar Clientes
-        for cname, ctax, is_int in clients_data[key]:
+        for cname, ctax, is_int, client_alias in clients_data[key]:
             client_id = str(uuid.uuid4())
             sql.append(f"""
             INSERT INTO clients (id, company_id, name, tax_id, is_internal_company) VALUES
@@ -55,6 +56,7 @@ def generate_catalog_sql(company_ids):
             ON CONFLICT DO NOTHING;
             """)
             client_ids.append((client_id, key, is_int))
+            client_ids_map[client_alias] = client_id
 
         # Insertar Productos
         for sku, pname, weight, vol, is_pal in products_catalog[key]:
@@ -66,4 +68,4 @@ def generate_catalog_sql(company_ids):
             """)
             product_ids.append((pid, sku, key, vol, weight))
 
-    return "\n".join(sql), product_ids, client_ids
+    return "\n".join(sql), product_ids, client_ids, client_ids_map

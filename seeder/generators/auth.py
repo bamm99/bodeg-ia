@@ -3,7 +3,7 @@ import uuid
 # Hash bcrypt válido para "admin123"
 BCRYPT_HASH = "$2a$10$cZn6qHgPgE1XaENJ.PbSNOyS57yP2YcTno/8DoZwDFDBlX5UA/gji"
 
-def generate_auth_sql(company_ids):
+def generate_auth_sql(company_ids, client_ids_map=None):
     sql = []
     
     # 1. Roles del Sistema Global
@@ -52,58 +52,72 @@ def generate_auth_sql(company_ids):
     ON CONFLICT DO NOTHING;
     """)
 
-    # Crear roles y usuarios para cada empresa (COMPANY_ADMIN, WAREHOUSE_MANAGER, OPERATOR)
+    # Crear roles y usuarios para cada empresa (COMPANY_ADMIN, WAREHOUSE_MANAGER, WAREHOUSE_OPERATOR, COMMERCIAL_MANAGEMENT, CLIENT_VIEWER)
     users_list = [
         ('agrosur', 'Empresa AgroSur', [
-            ('admin.agrosur@bodegia.cl', 'Sebastián Morales', 'COMPANY_ADMIN', 'Administrador AgroSur'),
-            ('jefe.pudahuel@bodegia.cl', 'Carlos Mendoza', 'WAREHOUSE_MANAGER', 'Jefe Bodega Pudahuel'),
-            ('operador.pudahuel@bodegia.cl', 'Rodrigo Silva', 'OPERATOR', 'Bodeguero Operador'),
+            ('admin.agrosur@bodegia.cl', 'Sebastián Morales', 'COMPANY_ADMIN', None),
+            ('jefe.pudahuel@bodegia.cl', 'Carlos Mendoza', 'WAREHOUSE_MANAGER', None),
+            ('operador.pudahuel@bodegia.cl', 'Rodrigo Silva', 'WAREHOUSE_OPERATOR', None),
+            ('comercial.agrosur@bodegia.cl', 'Andrea Tapia', 'COMMERCIAL_MANAGEMENT', None),
+            ('cliente.frutas@bodegia.cl', 'Portal Cliente Frutas Cachapoal', 'CLIENT_VIEWER', 'frutas'),
         ]),
         ('electrochile', 'ElectroChile S.A.', [
-            ('admin.electro@bodegia.cl', 'Valeria Fuentealba', 'COMPANY_ADMIN', 'Gerente Operaciones ElectroChile'),
-            ('jefe.huechuraba@bodegia.cl', 'Matías Tapia', 'WAREHOUSE_MANAGER', 'Jefe CD Huechuraba'),
+            ('admin.electro@bodegia.cl', 'Valeria Fuentealba', 'COMPANY_ADMIN', None),
+            ('jefe.huechuraba@bodegia.cl', 'Matías Tapia', 'WAREHOUSE_MANAGER', None),
+            ('comercial.electro@bodegia.cl', 'Camilo Lagos', 'COMMERCIAL_MANAGEMENT', None),
+            ('cliente.tech@bodegia.cl', 'Portal Cliente Retail Tech', 'CLIENT_VIEWER', 'retail'),
         ]),
         ('austral', 'Distribuidora Austral', [
-            ('admin.austral@bodegia.cl', 'Gonzalo Araya', 'COMPANY_ADMIN', 'Admin Austral'),
-            ('jefe.nos@bodegia.cl', 'Loreto Sepúlveda', 'WAREHOUSE_MANAGER', 'Jefe Centro Nos'),
+            ('admin.austral@bodegia.cl', 'Gonzalo Araya', 'COMPANY_ADMIN', None),
+            ('jefe.nos@bodegia.cl', 'Loreto Sepúlveda', 'WAREHOUSE_MANAGER', None),
         ]),
         ('textil', 'Textil Maipú', [
-            ('admin.textil@bodegia.cl', 'Camila Benítez', 'COMPANY_ADMIN', 'Administradora Maipú'),
+            ('admin.textil@bodegia.cl', 'Camila Benítez', 'COMPANY_ADMIN', None),
         ]),
         ('quimicos', 'Químicos Industriales', [
-            ('admin.quimicos@bodegia.cl', 'Ignacio Villagra', 'COMPANY_ADMIN', 'Jefe Planta Hazmat'),
-            ('jefe.lampa@bodegia.cl', 'Esteban Paredes', 'WAREHOUSE_MANAGER', 'Jefe Bodega Lampa'),
+            ('admin.quimicos@bodegia.cl', 'Ignacio Villagra', 'COMPANY_ADMIN', None),
+            ('jefe.lampa@bodegia.cl', 'Esteban Paredes', 'WAREHOUSE_MANAGER', None),
         ])
     ]
 
     for key, cname, users in users_list:
         cid = company_ids[key]
         
-        # Crear Rol Admin Empresa y Jefe Bodega para la empresa
+        # Crear los 5 roles por empresa
         role_comp_admin = str(uuid.uuid4())
         role_wh_manager = str(uuid.uuid4())
         role_operator = str(uuid.uuid4())
+        role_commercial = str(uuid.uuid4())
+        role_client_viewer = str(uuid.uuid4())
 
         sql.append(f"""
         INSERT INTO roles (id, company_id, code, name, permissions, is_system_role) VALUES
         ('{role_comp_admin}', '{cid}', 'COMPANY_ADMIN', 'Administrador de {cname}', '["company:read", "warehouse:*", "cost:*", "inventory:*", "user:*", "catalog:*"]'::jsonb, false),
         ('{role_wh_manager}', '{cid}', 'WAREHOUSE_MANAGER', 'Jefe de Bodega ({cname})', '["warehouse:read", "inventory:*", "cost:read"]'::jsonb, false),
-        ('{role_operator}', '{cid}', 'OPERATOR', 'Operador de Bodega ({cname})', '["inventory:read", "movement:create"]'::jsonb, false)
+        ('{role_operator}', '{cid}', 'WAREHOUSE_OPERATOR', 'Operador de Bodega ({cname})', '["inventory:read", "movement:create"]'::jsonb, false),
+        ('{role_commercial}', '{cid}', 'COMMERCIAL_MANAGEMENT', 'Gestión Comercial ({cname})', '["cost:read", "catalog:*", "client:*", "billing:read"]'::jsonb, false),
+        ('{role_client_viewer}', '{cid}', 'CLIENT_VIEWER', 'Cliente 3PL Portal ({cname})', '["inventory:read_own_stock"]'::jsonb, false)
         ON CONFLICT (company_id, code) DO NOTHING;
         """)
 
         company_roles[key] = {
             'COMPANY_ADMIN': role_comp_admin,
             'WAREHOUSE_MANAGER': role_wh_manager,
-            'OPERATOR': role_operator
+            'WAREHOUSE_OPERATOR': role_operator,
+            'COMMERCIAL_MANAGEMENT': role_commercial,
+            'CLIENT_VIEWER': role_client_viewer,
         }
 
-        for email, full_name, role_code, _ in users:
+        for email, full_name, role_code, client_key in users:
             uid = str(uuid.uuid4())
             rid = company_roles[key][role_code]
+            client_id_val = 'NULL'
+            if client_key and client_ids_map and client_key in client_ids_map:
+                client_id_val = f"'{client_ids_map[client_key]}'"
+
             sql.append(f"""
-            INSERT INTO users (id, primary_company_id, role_id, email, password_hash, full_name) VALUES
-            ('{uid}', '{cid}', '{rid}', '{email}', '{BCRYPT_HASH}', '{full_name}')
+            INSERT INTO users (id, primary_company_id, client_id, role_id, email, password_hash, full_name) VALUES
+            ('{uid}', '{cid}', {client_id_val}, '{rid}', '{email}', '{BCRYPT_HASH}', '{full_name}')
             ON CONFLICT (email) DO NOTHING;
             """)
             users_data.append((uid, email, cid))

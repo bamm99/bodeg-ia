@@ -8,14 +8,16 @@ class DBAdapter:
         self.env['PGPASSWORD'] = DB_PASSWORD
 
     def execute_sql(self, sql_statement):
-        """Ejecuta una consulta SQL en el servidor PostgreSQL de pruebas"""
+        """Ejecuta una consulta SQL en el servidor PostgreSQL de pruebas con bypass de RLS"""
+        bypass_prefix = "SET app.current_company_id = 'BYPASS'; "
         cmd = [
             'psql',
             '-h', DB_HOST,
             '-p', str(DB_PORT),
             '-U', DB_USER,
             '-d', DB_NAME,
-            '-c', sql_statement
+            '-v', 'ON_ERROR_STOP=1',
+            '-c', bypass_prefix + sql_statement
         ]
         result = subprocess.run(cmd, env=self.env, capture_output=True, text=True)
         if result.returncode != 0:
@@ -24,15 +26,17 @@ class DBAdapter:
         return True
 
     def execute_script(self, sql_script):
-        """Ejecuta un script SQL completo por entrada estándar"""
+        """Ejecuta un script SQL completo por entrada estándar con bypass de RLS multi-tenant"""
+        bypass_prefix = "SET app.current_company_id = 'BYPASS';\n"
         cmd = [
             'psql',
             '-h', DB_HOST,
             '-p', str(DB_PORT),
             '-U', DB_USER,
-            '-d', DB_NAME
+            '-d', DB_NAME,
+            '-v', 'ON_ERROR_STOP=1',
         ]
-        result = subprocess.run(cmd, input=sql_script, env=self.env, capture_output=True, text=True)
+        result = subprocess.run(cmd, input=bypass_prefix + sql_script, env=self.env, capture_output=True, text=True)
         if result.returncode != 0:
             print(f"❌ Error en script SQL: {result.stderr.strip()}")
             return False
