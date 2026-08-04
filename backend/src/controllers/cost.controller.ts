@@ -156,7 +156,6 @@ export async function calculateBillingPeriod(req: AuthRequest, res: Response) {
     where: {
       company_id: companyId,
       ...(client_id ? { client_owner_id: client_id } : {}),
-      deleted_at: null,
     },
     include: {
       clients: { select: { id: true, name: true } },
