@@ -2,13 +2,18 @@ import { Router } from 'express';
 import {
   getBranches,
   createBranch,
+  updateBranch,
+  deleteBranch,
   getWarehouses,
   getMyAssignedWarehouses,
   getWarehouseTree,
+  getWarehouse2DMap,
   createWarehouse,
   updateWarehouse,
   deleteWarehouse,
   createZone,
+  updateZone,
+  deleteZone,
   createAisle,
   createRack,
   updateRackPosition,
@@ -40,16 +45,21 @@ router.get('/my-assigned-warehouses', getMyAssignedWarehouses);
 // Sucursales
 router.get('/branches', getBranches);
 router.post('/branches', requirePermission('warehouse:manage'), validateRequest({ body: createBranchSchema }), createBranch);
+router.put('/branches/:id', requirePermission('warehouse:manage'), updateBranch);
+router.delete('/branches/:id', requirePermission('warehouse:manage'), deleteBranch);
 
 // Bodegas
 router.get('/warehouses', getWarehouses);
 router.get('/warehouses/:id/tree', getWarehouseTree);
+router.get('/warehouses/:id/2d-map', getWarehouse2DMap);
 router.post('/warehouses', requirePermission('warehouse:manage'), validateRequest({ body: createWarehouseSchema }), createWarehouse);
 router.put('/warehouses/:id', requirePermission('warehouse:manage'), validateRequest({ body: updateWarehouseSchema }), updateWarehouse);
 router.delete('/warehouses/:id', requirePermission('warehouse:manage'), deleteWarehouse);
 
 // Zonas
 router.post('/zones', requirePermission('warehouse:manage'), validateRequest({ body: createZoneSchema }), createZone);
+router.put('/zones/:id', requirePermission('warehouse:manage'), updateZone);
+router.delete('/zones/:id', requirePermission('warehouse:manage'), deleteZone);
 
 // Pasillos
 router.post('/aisles', requirePermission('warehouse:manage'), validateRequest({ body: createAisleSchema }), createAisle);

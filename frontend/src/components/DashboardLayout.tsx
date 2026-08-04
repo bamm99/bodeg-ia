@@ -1,29 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
+  Building2,
+  Crown,
+  Briefcase,
   Layers,
   DollarSign,
   Package,
   ShoppingCart,
   Users,
-  Building2,
   ShieldCheck,
   Settings,
   LogOut,
   Cpu,
-  Warehouse,
   Activity,
+  Warehouse,
+  Grid,
   CheckCircle2,
-  Briefcase,
-  Crown,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { InDevelopment } from './InDevelopment';
 import { API_BASE_URL } from '../config/api';
-import { WarehouseSwitcherDropdown } from './WarehouseSwitcherDropdown';
 import { CompanyListView } from './CompanyListView';
 import { PlanManagerView } from './PlanManagerView';
 import { ExecutiveAssignmentView } from './ExecutiveAssignmentView';
+import { BranchesManagerView } from './BranchesManagerView';
+import { WarehousesManagerView } from './WarehousesManagerView';
+import { SpatialHierarchyDesigner } from './SpatialHierarchyDesigner';
+import { WarehouseMap2D } from './WarehouseMap2D';
+import { InDevelopment } from './InDevelopment';
+import { WarehouseSwitcherDropdown } from './WarehouseSwitcherDropdown';
 
 interface DashboardLayoutProps {
   onLogout: () => void;
@@ -61,10 +66,13 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) =>
 
   const allSidebarMenuItems = [
     { id: 'dashboard', label: 'Resumen Dashboard', icon: LayoutDashboard, isReady: true, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_OPERATOR', 'CLIENT_VIEWER'] },
-    { id: 'companies', label: roleCode === 'SUPER_ADMIN' ? 'Empresas & Sucursales' : roleCode === 'PLATFORM_ADMIN' ? 'Cartola de Empresas' : 'Mi Empresa & Sucursales', icon: Building2, isReady: true, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN'] },
+    { id: 'companies', label: roleCode === 'SUPER_ADMIN' ? 'Empresas SaaS' : roleCode === 'PLATFORM_ADMIN' ? 'Cartola de Empresas' : 'Mi Empresa SaaS', icon: Building2, isReady: true, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN'] },
+    { id: 'branches', label: 'Sucursales Físicas', icon: Building2, isReady: true, roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
+    { id: 'warehouses', label: 'Bodegas & Naves', icon: Warehouse, isReady: true, roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
+    { id: 'spatial', label: 'Diseñador Espacial', icon: Grid, isReady: true, roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
+    { id: 'map2d', label: 'Plano 2D Interactivo', icon: Layers, isReady: true, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_OPERATOR'] },
     { id: 'plans', label: 'Planes SaaS & Cuotas', icon: Crown, isReady: true, roles: ['SUPER_ADMIN'] },
     { id: 'executives', label: 'Asignación de Cartolas', icon: Briefcase, isReady: true, roles: ['SUPER_ADMIN'] },
-    { id: 'map2d', label: 'Plano 2D de Bodegas', icon: Layers, isReady: false, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_OPERATOR'] },
     { id: 'costs', label: 'Tarifario & Costos AST', icon: DollarSign, isReady: false, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER'] },
     { id: 'inventory', label: 'Inventario & Kardex', icon: Package, isReady: false, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_OPERATOR', 'CLIENT_VIEWER'] },
     { id: 'catalog', label: 'Catálogo de Productos', icon: ShoppingCart, isReady: false, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_OPERATOR'] },
@@ -410,6 +418,14 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) =>
             </div>
           ) : activeSection === 'companies' ? (
             <CompanyListView />
+          ) : activeSection === 'branches' ? (
+            <BranchesManagerView />
+          ) : activeSection === 'warehouses' ? (
+            <WarehousesManagerView />
+          ) : activeSection === 'spatial' ? (
+            <SpatialHierarchyDesigner />
+          ) : activeSection === 'map2d' ? (
+            <WarehouseMap2D />
           ) : activeSection === 'plans' ? (
             <PlanManagerView />
           ) : activeSection === 'executives' ? (
