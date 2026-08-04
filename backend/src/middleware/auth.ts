@@ -53,6 +53,19 @@ export async function authenticateToken(
       if (!session || session.is_revoked || session.expires_at < new Date()) {
         return sendError(res, 'La sesión ha sido cerrada o revocada', 401);
       }
+
+      // Verificación Server-Side de Inactividad de 15 minutos para rol CLIENT_VIEWER
+      if (user.roles.code === 'CLIENT_VIEWER') {
+        const lastActivity = session.created_at || new Date();
+        const diffMinutes = (Date.now() - new Date(lastActivity).getTime()) / (1000 * 60);
+        if (diffMinutes > 15) {
+          await prisma.user_sessions.update({
+            where: { id: session.id },
+            data: { is_revoked: true },
+          });
+          return sendError(res, 'Sesión del portal 3PL expirada por 15 minutos de inactividad', 401);
+        }
+      }
     }
 
     const permissions = Array.isArray(user.roles.permissions)

@@ -27,6 +27,9 @@ import { BranchesManagerView } from './BranchesManagerView';
 import { WarehousesManagerView } from './WarehousesManagerView';
 import { SpatialHierarchyDesigner } from './SpatialHierarchyDesigner';
 import { WarehouseMap2D } from './WarehouseMap2D';
+import { ProductsCatalogView } from './ProductsCatalogView';
+import { Clients3PLView } from './Clients3PLView';
+import { ClientPortalDashboard } from './ClientPortalDashboard';
 import { InDevelopment } from './InDevelopment';
 import { WarehouseSwitcherDropdown } from './WarehouseSwitcherDropdown';
 
@@ -75,8 +78,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) =>
     { id: 'executives', label: 'Asignación de Cartolas', icon: Briefcase, isReady: true, roles: ['SUPER_ADMIN'] },
     { id: 'costs', label: 'Tarifario & Costos AST', icon: DollarSign, isReady: false, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER'] },
     { id: 'inventory', label: 'Inventario & Kardex', icon: Package, isReady: false, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_OPERATOR', 'CLIENT_VIEWER'] },
-    { id: 'catalog', label: 'Catálogo de Productos', icon: ShoppingCart, isReady: false, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_OPERATOR'] },
-    { id: 'clients', label: 'Clientes 3PL', icon: Users, isReady: false, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'CLIENT_VIEWER'] },
+    { id: 'catalog', label: 'Catálogo de Productos', icon: ShoppingCart, isReady: true, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_OPERATOR'] },
+    { id: 'clients', label: 'Clientes 3PL', icon: Users, isReady: true, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'CLIENT_VIEWER'] },
     { id: 'rbac', label: 'Usuarios & Permisos RBAC', icon: ShieldCheck, isReady: false, roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
     { id: 'settings', label: 'Configuración Sistema', icon: Settings, isReady: false, roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
   ];
@@ -251,6 +254,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) =>
         {/* Dynamic Body Content */}
         <main style={{ flex: 1, padding: '28px', overflowY: 'auto' }}>
           {activeSection === 'dashboard' ? (
+            roleCode === 'CLIENT_VIEWER' ? (
+              <ClientPortalDashboard />
+            ) : (
             <div>
               <div style={{ marginBottom: '24px' }}>
                 <h1 style={{ fontSize: '1.6rem', fontWeight: 800 }}>
@@ -416,6 +422,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) =>
                 </div>
               )}
             </div>
+            )
           ) : activeSection === 'companies' ? (
             <CompanyListView />
           ) : activeSection === 'branches' ? (
@@ -426,6 +433,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) =>
             <SpatialHierarchyDesigner />
           ) : activeSection === 'map2d' ? (
             <WarehouseMap2D />
+          ) : activeSection === 'catalog' ? (
+            <ProductsCatalogView />
+          ) : activeSection === 'clients' ? (
+            <Clients3PLView />
           ) : activeSection === 'plans' ? (
             <PlanManagerView />
           ) : activeSection === 'executives' ? (

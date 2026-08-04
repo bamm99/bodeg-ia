@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import bcrypt from 'bcryptjs';
 import { prisma } from '../db/prisma.js';
 import { sendSuccess, sendError, sendPaginated } from '../utils/response.js';
 import { AuthRequest } from '../middleware/auth.js';
@@ -8,6 +9,9 @@ export async function getClients(req: AuthRequest, res: Response) {
   const companyId = req.user?.companyId;
   const clients = await prisma.clients.findMany({
     where: { company_id: companyId, deleted_at: null },
+    include: {
+      users: { select: { id: true, email: true, full_name: true, is_active: true } },
+    },
   });
   return sendSuccess(res, clients);
 }
@@ -18,6 +22,91 @@ export async function createClient(req: AuthRequest, res: Response) {
     data: { ...req.body, company_id: companyId },
   });
   return sendSuccess(res, client, 201, 'Cliente propietario registrado exitosamente');
+}
+
+export async function updateClient(req: AuthRequest, res: Response) {
+  const { id } = req.params;
+  const client = await prisma.clients.update({
+    where: { id },
+    data: req.body,
+  });
+  return sendSuccess(res, client, 200, 'Cliente actualizado');
+}
+
+export async function deleteClient(req: AuthRequest, res: Response) {
+  const { id } = req.params;
+  await prisma.clients.update({
+    where: { id },
+    data: { deleted_at: new Date() },
+  });
+  return sendSuccess(res, null, 200, 'Cliente eliminado (soft-delete)');
+}
+
+export async function inviteClientToPortal(req: AuthRequest, res: Response) {
+  const { id } = req.params;
+  const companyId = req.user?.companyId;
+
+  const client = await prisma.clients.findFirst({
+    where: { id, ...(companyId ? { company_id: companyId } : {}), deleted_at: null },
+  });
+
+  if (!client) {
+    return sendError(res, 'Cliente 3PL no encontrado o sin acceso', 404);
+  }
+
+  // 1. Obtener o crear rol CLIENT_VIEWER para esta empresa
+  let clientViewerRole = await prisma.roles.findFirst({
+    where: { company_id: client.company_id, code: 'CLIENT_VIEWER' },
+  });
+
+  if (!clientViewerRole) {
+    clientViewerRole = await prisma.roles.create({
+      data: {
+        company_id: client.company_id,
+        code: 'CLIENT_VIEWER',
+        name: `Cliente 3PL Portal`,
+        permissions: ['inventory:read_own_stock'],
+      },
+    });
+  }
+
+  // 2. Comprobar si ya existe un usuario de portal para este cliente
+  const sanitizedTax = client.tax_id ? client.tax_id.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() : id.substring(0, 8);
+  const portalEmail = `cliente.${sanitizedTax}@bodegia.cl`;
+
+  let portalUser = await prisma.users.findFirst({
+    where: { client_id: client.id, deleted_at: null },
+  });
+
+  const tempPassword = 'admin123';
+
+  if (!portalUser) {
+    const password_hash = await bcrypt.hash(tempPassword, 10);
+    portalUser = await prisma.users.create({
+      data: {
+        primary_company_id: client.company_id,
+        client_id: client.id,
+        role_id: clientViewerRole.id,
+        email: portalEmail,
+        password_hash,
+        full_name: `Portal Cliente (${client.name})`,
+      },
+    });
+  }
+
+  return sendSuccess(
+    res,
+    {
+      clientId: client.id,
+      clientName: client.name,
+      portalEmail: portalUser.email,
+      tempPassword,
+      loginUrl: 'http://localhost:5173/login',
+      invitedAt: new Date().toISOString(),
+    },
+    200,
+    'Enlace e invitación a Portal de Autoservicio 3PL generado exitosamente'
+  );
 }
 
 // --- PRODUCTOS ---

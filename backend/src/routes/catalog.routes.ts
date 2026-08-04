@@ -2,6 +2,9 @@ import { Router } from 'express';
 import {
   getClients,
   createClient,
+  updateClient,
+  deleteClient,
+  inviteClientToPortal,
   getProducts,
   getProductById,
   createProduct,
@@ -23,6 +26,9 @@ router.use(authenticateToken);
 // Clientes 3PL
 router.get('/clients', getClients);
 router.post('/clients', requirePermission('catalog:manage'), validateRequest({ body: createClientSchema }), createClient);
+router.put('/clients/:id', requirePermission('catalog:manage'), updateClient);
+router.delete('/clients/:id', requirePermission('catalog:manage'), deleteClient);
+router.post('/clients/:id/invite-portal', requirePermission('catalog:manage'), inviteClientToPortal);
 
 // Productos
 router.get('/products', getProducts);
