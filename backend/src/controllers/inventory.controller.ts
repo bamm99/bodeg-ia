@@ -42,7 +42,7 @@ export async function getInventoryItems(req: AuthRequest, res: Response) {
 
 // --- RECEPCIÓN E INGRESO (INBOUND) ---
 export async function inboundStock(req: AuthRequest, res: Response) {
-  const companyId = req.user?.companyId;
+  const companyId = req.body?.company_id || req.user?.companyId;
   const userId = req.user?.userId;
   const {
     product_id,
@@ -55,6 +55,10 @@ export async function inboundStock(req: AuthRequest, res: Response) {
     occupied_m3,
   } = req.body;
 
+  if (!companyId) {
+    return sendError(res, 'Debe especificar la empresa para la recepción de mercancía', 400);
+  }
+
   // 1. Obtener cliente por defecto si no viene especificado
   let clientId = client_owner_id;
   if (!clientId) {
@@ -65,7 +69,14 @@ export async function inboundStock(req: AuthRequest, res: Response) {
   }
 
   if (!clientId) {
-    return sendError(res, 'No se encontró un cliente registrado para la empresa', 400);
+    const fallbackClient = await prisma.clients.findFirst({
+      where: { company_id: companyId },
+    });
+    clientId = fallbackClient?.id;
+  }
+
+  if (!clientId) {
+    return sendError(res, 'No se encontró un cliente propietario registrado para la empresa', 400);
   }
 
   // 2. Verificar capacidad disponible en el casillero
@@ -90,7 +101,7 @@ export async function inboundStock(req: AuthRequest, res: Response) {
   const result = await prisma.$transaction(async (tx) => {
     const item = await tx.inventory_items.create({
       data: {
-        company_id: companyId!,
+        company_id: companyId,
         product_id,
         storage_location_id,
         client_owner_id: clientId,
@@ -113,7 +124,7 @@ export async function inboundStock(req: AuthRequest, res: Response) {
 
     const movement = await tx.inventory_movements.create({
       data: {
-        company_id: companyId!,
+        company_id: companyId,
         inventory_item_id: item.id,
         movement_type: 'INBOUND',
         destination_location_id: storage_location_id,
@@ -130,7 +141,6 @@ export async function inboundStock(req: AuthRequest, res: Response) {
 
 // --- REUBICACIÓN (RELOCATE) ---
 export async function relocateStock(req: AuthRequest, res: Response) {
-  const companyId = req.user?.companyId;
   const userId = req.user?.userId;
   const { inventory_item_id, destination_location_id, quantity } = req.body;
 
@@ -139,6 +149,8 @@ export async function relocateStock(req: AuthRequest, res: Response) {
   });
 
   if (!item) return sendError(res, 'Item de inventario no encontrado', 404);
+
+  const companyId = item.company_id || req.body?.company_id || req.user?.companyId;
 
   const sourceLocationId = item.storage_location_id;
   const sourceLocation = await prisma.storage_locations.findUnique({
@@ -179,7 +191,7 @@ export async function relocateStock(req: AuthRequest, res: Response) {
     // 4. Registrar en Kardex
     const movement = await tx.inventory_movements.create({
       data: {
-        company_id: companyId!,
+        company_id: companyId,
         inventory_item_id: item.id,
         movement_type: 'RELOCATION',
         source_location_id: sourceLocationId,
@@ -197,7 +209,6 @@ export async function relocateStock(req: AuthRequest, res: Response) {
 
 // --- DESPACHO / SALIDA (OUTBOUND BIFURCADO) ---
 export async function outboundStock(req: AuthRequest, res: Response) {
-  const companyId = req.user?.companyId;
   const userId = req.user?.userId;
   const { inventory_item_id, quantity, dispatch_request_id } = req.body;
 
@@ -210,6 +221,8 @@ export async function outboundStock(req: AuthRequest, res: Response) {
   if (quantity > item.quantity) {
     return sendError(res, `Stock insuficiente. Disponible: ${item.quantity}`, 400);
   }
+
+  const companyId = item.company_id || req.body?.company_id || req.user?.companyId;
 
   // BIFURCACIÓN DE ACCESO: Si pertenece a un cliente 3PL externo, exige solicitud en estado APPROVED
   const is3PLExternal = item.clients && !item.clients.is_internal_company;
@@ -273,7 +286,7 @@ export async function outboundStock(req: AuthRequest, res: Response) {
     // 4. Registrar Kardex Outbound
     const movement = await tx.inventory_movements.create({
       data: {
-        company_id: companyId!,
+        company_id: companyId,
         inventory_item_id: item.id,
         movement_type: 'OUTBOUND',
         source_location_id: item.storage_location_id,
@@ -319,6 +332,10 @@ export async function createDispatchRequest(req: AuthRequest, res: Response) {
   const userId = req.user?.userId;
   const { product_id, client_id, quantity, notes } = req.body;
 
+  if (!companyId) {
+    return sendError(res, 'Debe especificar la empresa para crear la solicitud de despacho', 400);
+  }
+
   let targetClientId = client_id;
   if (!targetClientId) {
     const user = await prisma.users.findUnique({ where: { id: userId } });
@@ -334,7 +351,7 @@ export async function createDispatchRequest(req: AuthRequest, res: Response) {
 
   const request = await prisma.dispatch_requests.create({
     data: {
-      company_id: companyId!,
+      company_id: companyId,
       client_id: targetClientId!,
       product_id,
       quantity,
