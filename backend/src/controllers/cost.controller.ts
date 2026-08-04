@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { prisma } from '../db/prisma.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 import { AuthRequest } from '../middleware/auth.js';
-import { calculateDailyStorageCost } from '../services/costCalculator.js';
+import { calculateDailyStorageCost, validateASTFormula } from '../services/costCalculator.js';
 
 export async function getCostProfiles(req: AuthRequest, res: Response) {
   const companyId = req.user?.companyId;
@@ -121,5 +121,70 @@ export async function simulateCost(req: AuthRequest, res: Response) {
     totalDailyCost: result.totalDailyCost,
     isCustomFormulaUsed: result.isCustomFormulaUsed,
     occupancyPct: Number((occRatio * 100).toFixed(1)),
+  });
+}
+
+export async function validateFormula(req: AuthRequest, res: Response) {
+  const { formula } = req.body;
+  const validation = validateASTFormula(formula);
+  if (!validation.isValid) {
+    return sendError(res, validation.error || 'Fórmula sintácticamente inválida', 400);
+  }
+  return sendSuccess(res, validation, 200, 'Fórmula AST válida y verificada con Whitelist');
+}
+
+export async function deleteCostProfile(req: AuthRequest, res: Response) {
+  const { id } = req.params;
+  await prisma.cost_profiles.update({
+    where: { id },
+    data: { deleted_at: new Date() },
+  });
+  return sendSuccess(res, null, 200, 'Perfil de costos eliminado (soft-delete)');
+}
+
+export async function calculateBillingPeriod(req: AuthRequest, res: Response) {
+  const companyId = req.user?.companyId;
+  const { client_id, start_date, end_date } = req.body;
+
+  const start = start_date ? new Date(start_date) : new Date(Date.now() - 30 * 24 * 3600 * 1000);
+  const end = end_date ? new Date(end_date) : new Date();
+
+  const totalDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 3600 * 24)));
+
+  // Obtenemos los lotes de inventario del cliente
+  const inventoryItems = await prisma.inventory_items.findMany({
+    where: {
+      company_id: companyId,
+      ...(client_id ? { client_owner_id: client_id } : {}),
+      deleted_at: null,
+    },
+    include: {
+      clients: { select: { id: true, name: true } },
+    },
+  });
+
+  const totalOccupiedM3 = inventoryItems.reduce((acc, curr) => acc + Number(curr.occupied_m3 || 0), 0);
+
+  // Obtener tarifa de costo base por defecto para el tenant
+  const activeProfile = await prisma.cost_profiles.findFirst({
+    where: { company_id: companyId, deleted_at: null },
+    orderBy: { created_at: 'desc' },
+  });
+
+  const dailyBase = activeProfile ? Number(activeProfile.daily_base_cost) : 150; // $150 CLP por m³ al día
+  const dailyTotal = Number((totalOccupiedM3 * dailyBase).toFixed(2));
+  const periodTotal = Number((dailyTotal * totalDays).toFixed(2));
+
+  return sendSuccess(res, {
+    clientId: client_id || 'TODOS',
+    clientName: inventoryItems[0]?.clients?.name || 'Cliente 3PL General',
+    startDate: start.toISOString().substring(0, 10),
+    endDate: end.toISOString().substring(0, 10),
+    totalDays,
+    totalOccupiedM3: Number(totalOccupiedM3.toFixed(2)),
+    dailyBaseCostM3: dailyBase,
+    dailyStorageCostTotal: dailyTotal,
+    periodTotalCostCLP: periodTotal,
+    currency: activeProfile?.currency || 'CLP',
   });
 }

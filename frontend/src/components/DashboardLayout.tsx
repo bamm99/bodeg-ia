@@ -30,6 +30,9 @@ import { WarehouseMap2D } from './WarehouseMap2D';
 import { ProductsCatalogView } from './ProductsCatalogView';
 import { Clients3PLView } from './Clients3PLView';
 import { ClientPortalDashboard } from './ClientPortalDashboard';
+import { CostProfilesManagerView } from './CostProfilesManagerView';
+import { ASTFormulaEditorView } from './ASTFormulaEditorView';
+import { CostSimulatorView } from './CostSimulatorView';
 import { InDevelopment } from './InDevelopment';
 import { WarehouseSwitcherDropdown } from './WarehouseSwitcherDropdown';
 
@@ -76,7 +79,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) =>
     { id: 'map2d', label: 'Plano 2D Interactivo', icon: Layers, isReady: true, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_OPERATOR'] },
     { id: 'plans', label: 'Planes SaaS & Cuotas', icon: Crown, isReady: true, roles: ['SUPER_ADMIN'] },
     { id: 'executives', label: 'Asignación de Cartolas', icon: Briefcase, isReady: true, roles: ['SUPER_ADMIN'] },
-    { id: 'costs', label: 'Tarifario & Costos AST', icon: DollarSign, isReady: false, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER'] },
+    { id: 'costs', label: 'Tarifario & Costos AST', icon: DollarSign, isReady: true, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER'] },
+    { id: 'cost-editor', label: 'Editor Sintáctico AST', icon: Cpu, isReady: true, roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
+    { id: 'cost-simulator', label: 'Simulador & Liquidación 3PL', icon: DollarSign, isReady: true, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER'] },
     { id: 'inventory', label: 'Inventario & Kardex', icon: Package, isReady: false, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_OPERATOR', 'CLIENT_VIEWER'] },
     { id: 'catalog', label: 'Catálogo de Productos', icon: ShoppingCart, isReady: true, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_OPERATOR'] },
     { id: 'clients', label: 'Clientes 3PL', icon: Users, isReady: true, roles: ['SUPER_ADMIN', 'PLATFORM_ADMIN', 'COMPANY_ADMIN', 'CLIENT_VIEWER'] },
@@ -433,6 +438,12 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) =>
             <SpatialHierarchyDesigner />
           ) : activeSection === 'map2d' ? (
             <WarehouseMap2D />
+          ) : activeSection === 'costs' ? (
+            <CostProfilesManagerView />
+          ) : activeSection === 'cost-editor' ? (
+            <ASTFormulaEditorView />
+          ) : activeSection === 'cost-simulator' ? (
+            <CostSimulatorView />
           ) : activeSection === 'catalog' ? (
             <ProductsCatalogView />
           ) : activeSection === 'clients' ? (

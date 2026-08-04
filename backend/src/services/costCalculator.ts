@@ -71,3 +71,36 @@ export function calculateDailyStorageCost(
     isCustomFormulaUsed: false,
   };
 }
+
+/**
+ * Validador Sintáctico AST y Sandbox Whitelist
+ */
+export function validateASTFormula(formula: string): { isValid: boolean; error?: string; allowedVariables: string[] } {
+  const allowedVariables = ['base', 'turnover', 'maintenance', 'energy', 'seasonal', 'occupied_m3', 'total_m3', 'occupancy_pct'];
+  if (!formula || formula.trim() === '') {
+    return { isValid: false, error: 'La expresión de la fórmula no puede estar vacía', allowedVariables };
+  }
+
+  try {
+    const node = math.parse(formula);
+    const symbols: string[] = [];
+    node.traverse((n: any) => {
+      if (n.isSymbolNode) {
+        symbols.push(n.name);
+      }
+    });
+
+    const invalidSymbols = symbols.filter((s) => !allowedVariables.includes(s));
+    if (invalidSymbols.length > 0) {
+      return {
+        isValid: false,
+        error: `Variables no reconocidas: ${invalidSymbols.join(', ')}. Variables permitidas: ${allowedVariables.join(', ')}`,
+        allowedVariables,
+      };
+    }
+
+    return { isValid: true, allowedVariables };
+  } catch (err: any) {
+    return { isValid: false, error: `Error de sintaxis matemática: ${err.message}`, allowedVariables };
+  }
+}
